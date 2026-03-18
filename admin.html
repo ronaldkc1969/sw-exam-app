@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>社会福祉士試験 - 教員管理画面</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --primary: #2c5f8a;
+      --accent: #e8912c;
+      --success: #27ae60;
+      --error: #e74c3c;
+      --light-bg: #f5f7fa;
+      --border: #e0e6ed;
+      --text-dark: #333;
+      --text-light: #666;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--light-bg);
+      color: var(--text-dark);
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    /* Navigation */
+    nav {
+      background-color: var(--primary);
+      color: white;
+      padding: 1rem 0;
+      margin-bottom: 2rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    nav .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    nav h1 {
+      font-size: 1.5rem;
+    }
+
+    nav button {
+      background-color: var(--accent);
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    nav button:hover {
+      background-color: #d17a1a;
+    }
+
+    /* Screens */
+    .screen {
+      display: none;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    /* Login */
+    .login-screen {
+      max-width: 400px;
+      margin: 3rem auto;
+      background: white;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .login-screen h2 {
+      color: var(--primary);
+      margin-bottom: 1.5rem;
+      text-align: center;
+    }
+
+    .form-group {
+      margin-bottom: 1.5rem;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 1rem;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(44, 95, 138, 0.1);
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 4px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-weight: 500;
+    }
+
+    .btn-primary {
+      background-color: var(--primary);
+      color: white;
+      width: 100%;
+    }
+
+    .btn-primary:hover {
+      background-color: #1e4563;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(44, 95, 138, 0.3);
+    }
+
+    .btn-secondary {
+      background-color: #95a5a6;
+      color: white;
+    }
+
+    .btn-back {
+      background-color: transparent;
+      color: var(--primary);
+      border: 1px solid var(--primary);
+      margin-bottom: 2rem;
+    }
+
+    .btn-back:hover {
+      background-color: var(--light-bg);
+    }
+
+    .error-message {
+      background-color: #fadbd8;
+      color: var(--error);
+      padding: 1rem;
+      border-radius: 4px;
+      margin-bottom: 1rem;
+      display: none;
+    }
+
+    .error-message.show {
+      display: block;
+    }
+
+    /* Dashboard */
+    .stats-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .stats-table th {
+      background-color: var(--primary);
+      color: white;
+      padding: 1rem;
+      text-align: left;
+      font-weight: 500;
+    }
+
+    .stats-table td {
+      padding: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .stats-table tr:hover {
+      background-color: var(--light-bg);
+      cursor: pointer;
+    }
+
+    .stats-table .clickable {
+      color: var(--primary);
+      text-decoration: underline;
+      cursor: pointer;
+    }
+
+    /* Detail View */
+    .detail-header {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 8px;
+      margin-bottom: 2rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .detail-header h2 {
+      color: var(--primary);
+      margin-bottom: 0.5rem;
+    }
+
+    .chart-container {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 2rem;
+    }
+
+    .chart-container h3 {
+      margin-bottom: 1.5rem;
+      color: var(--primary);
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        padding: 10px;
+      }
+
+      .stats-table {
+        font-size: 0.9rem;
+      }
+
+      .stats-table th,
+      .stats-table td {
+        padding: 0.75rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="container">
+      <h1>教員管理画面</h1>
+      <button id="logout-btn" onclick="logout()" style="display: none;">ログアウト</button>
+    </div>
+  </nav>
+
+  <div class="container">
+    <!-- Login Screen -->
+    <div id="login-screen" class="screen active login-screen">
+      <h2>教員ログイン</h2>
+      <div class="error-message" id="login-error"></div>
+      <div class="form-group">
+        <label for="teacher-id">教員ID</label>
+        <input type="text" id="teacher-id" placeholder="例: TEACHER001">
+      </div>
+      <div class="form-group">
+        <label for="teacher-password">パスワード</label>
+        <input type="password" id="teacher-password" placeholder="パスワード">
+      </div>
+      <button class="btn btn-primary" onclick="teacherLogin()">ログイン</button>
+    </div>
+
+    <!-- Dashboard Screen -->
+    <div id="dashboard-screen" class="screen">
+      <h2 style="color: var(--primary); margin-bottom: 2rem;">学生管理ダッシュボード</h2>
+      <div style="margin-bottom: 2rem;">
+        <table class="stats-table">
+          <thead>
+            <tr>
+              <th>学籍番号</th>
+              <th>氏名</th>
+              <th>解答数</th>
+              <th>正解数</th>
+              <th>正解率</th>
+              <th>学習時間（分）</th>
+              <th>最終学習日</th>
+            </tr>
+          </thead>
+          <tbody id="students-tbody">
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Student Detail Screen -->
+    <div id="detail-screen" class="screen">
+      <button class="btn btn-back" onclick="backToDashboard()">← ダッシュボードに戻る</button>
+      <div class="detail-header">
+        <h2 id="student-detail-name"></h2>
+        <p style="color: var(--text-light);">学籍番号: <strong id="student-detail-id"></strong></p>
+      </div>
+
+      <div class="chart-container">
+        <h3>科目別正解率</h3>
+        <canvas id="subjectDetailChart"></canvas>
+      </div>
+
+      <div class="chart-container">
+        <h3>学習セッション</h3>
+        <table class="stats-table">
+          <thead>
+            <tr>
+              <th>開始時刻</th>
+              <th>終了時刻</th>
+              <th>解答数</th>
+              <th>正解数</th>
+              <th>正解率</th>
+            </tr>
+          </thead>
+          <tbody id="sessions-tbody">
+          </tbody>
+        </table>
+      </div>
+
+      <div class="chart-container">
+        <h3>解答履歴</h3>
+        <table class="stats-table">
+          <thead>
+            <tr>
+              <th>問題ID</th>
+              <th>科目</th>
+              <th>結果</th>
+              <th>日時</th>
+            </tr>
+          </thead>
+          <tbody id="answers-tbody">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/questions.js"></script>
+  <script>
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbxFzlCOWQkKAn3yWfYsVB5YV8B-Ae59rg5msmkN-PPCunE8tayHwWiVuz5DME6BEHU/exec';
+
+    let currentTeacher = null;
+    let currentStudentId = null;
+
+    // Initialize
+    function init() {
+      const stored = localStorage.getItem('teacher');
+      if (stored) {
+        currentTeacher = JSON.parse(stored);
+        showDashboard();
+      }
+    }
+
+    // Login
+    function teacherLogin() {
+      const teacherId = document.getElementById('teacher-id').value;
+      const password = document.getElementById('teacher-password').value;
+
+      if (!teacherId || !password) {
+        showLoginError('教員IDとパスワードを入力してください');
+        return;
+      }
+
+      fetch(`${GAS_URL}?action=login&student_id=${teacherId}&password=${password}`)
+        .then(r => r.json())
+        .then(res => {
+          if (res.success && res.data.role === 'teacher') {
+            currentTeacher = res.data;
+            localStorage.setItem('teacher', JSON.stringify(currentTeacher));
+            document.getElementById('logout-btn').style.display = 'block';
+            showDashboard();
+          } else {
+            showLoginError('教員認証に失敗しました。認証情報を確認してください。');
+          }
+        })
+        .catch(err => {
+          showLoginError('通信エラーが発生しました: ' + err.message);
+        });
+    }
+
+    function showLoginError(msg) {
+      const el = document.getElementById('login-error');
+      el.textContent = msg;
+      el.classList.add('show');
+    }
+
+    function logout() {
+      currentTeacher = null;
+      localStorage.removeItem('teacher');
+      document.getElementById('logout-btn').style.display = 'none';
+      showScreen('login-screen');
+      document.getElementById('teacher-id').value = '';
+      document.getElementById('teacher-password').value = '';
+      document.getElementById('login-error').classList.remove('show');
+    }
+
+    // Dashboard
+    function showDashboard() {
+      fetch(`${GAS_URL}?action=getAllStudents&admin_id=${currentTeacher.student_id}`)
+        .then(r => r.json())
+        .then(res => {
+          if (!res.success) {
+            alert('認可エラー: ' + res.data);
+            logout();
+            return;
+          }
+          displayDashboard(res.data.students);
+          showScreen('dashboard-screen');
+        })
+        .catch(err => alert('ダッシュボード読み込みエラー: ' + err.message));
+    }
+
+    function displayDashboard(students) {
+      const tbody = document.getElementById('students-tbody');
+      tbody.innerHTML = '';
+
+      students.forEach(student => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><span class="clickable" onclick="showStudentDetail('${student.student_id}')">${student.student_id}</span></td>
+          <td><span class="clickable" onclick="showStudentDetail('${student.student_id}')">${student.name}</span></td>
+          <td>${student.answered}</td>
+          <td>${student.correct}</td>
+          <td>${student.accuracy}%</td>
+          <td>-</td>
+          <td>-</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Student Detail
+    function showStudentDetail(studentId) {
+      currentStudentId = studentId;
+      fetch(`${GAS_URL}?action=getStudentDetail&admin_id=${currentTeacher.student_id}&target_student_id=${studentId}`)
+        .then(r => r.json())
+        .then(res => {
+          if (!res.success) {
+            alert('認可エラー');
+            return;
+          }
+          displayStudentDetail(studentId, res.data);
+          showScreen('detail-screen');
+        })
+        .catch(err => alert('学生詳細読み込みエラー: ' + err.message));
+    }
+
+    function displayStudentDetail(studentId, data) {
+      document.getElementById('student-detail-id').textContent = studentId;
+      document.getElementById('student-detail-name').textContent = getStudentName(studentId);
+
+      // Chart: Subject accuracy
+      const subjectStats = data.subjectStats;
+      const labels = Object.keys(subjectStats);
+      const accuracyData = labels.map(subject => {
+        const stat = subjectStats[subject];
+        return Math.round((stat.correct / stat.answered) * 100);
+      });
+
+      const ctx = document.getElementById('subjectDetailChart').getContext('2d');
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: '正解率 (%)',
+            data: accuracyData,
+            backgroundColor: 'rgba(44, 95, 138, 0.8)',
+            borderColor: 'rgba(44, 95, 138, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: { beginAtZero: true, max: 100 }
+          }
+        }
+      });
+
+      // Sessions table
+      const sessionsTbody = document.getElementById('sessions-tbody');
+      sessionsTbody.innerHTML = '';
+      data.sessions.forEach(session => {
+        const tr = document.createElement('tr');
+        const accuracy = session.questions_answered > 0
+          ? Math.round((session.correct_count / session.questions_answered) * 100)
+          : 0;
+        tr.innerHTML = `
+          <td>${new Date(session.start_time).toLocaleString('ja-JP')}</td>
+          <td>${session.end_time ? new Date(session.end_time).toLocaleString('ja-JP') : '-'}</td>
+          <td>${session.questions_answered}</td>
+          <td>${session.correct_count}</td>
+          <td>${accuracy}%</td>
+        `;
+        sessionsTbody.appendChild(tr);
+      });
+
+      // Answers table
+      const answersTbody = document.getElementById('answers-tbody');
+      answersTbody.innerHTML = '';
+      data.answers.slice(-30).reverse().forEach(answer => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>Q${answer.question_id}</td>
+          <td>${answer.subject}</td>
+          <td><span style="color: ${answer.is_correct ? 'var(--success)' : 'var(--error)'}">
+            ${answer.is_correct ? '正解' : '不正解'}</span></td>
+          <td>${new Date(answer.timestamp).toLocaleString('ja-JP')}</td>
+        `;
+        answersTbody.appendChild(tr);
+      });
+    }
+
+    function getStudentName(studentId) {
+      // In production, fetch from database
+      // For now, return ID
+      return studentId;
+    }
+
+    function backToDashboard() {
+      showDashboard();
+    }
+
+    // Screen Management
+    function showScreen(screenId) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(screenId).classList.add('active');
+    }
+
+    init();
+  </script>
+</body>
+</html>
