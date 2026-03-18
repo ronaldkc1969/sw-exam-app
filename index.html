@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>社会福祉士国家試験 学習アプリ</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --primary: #2c5f8a;
+      --accent: #e8912c;
+      --success: #27ae60;
+      --error: #e74c3c;
+      --light-bg: #f5f7fa;
+      --border: #e0e6ed;
+      --text-dark: #333;
+      --text-light: #666;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--light-bg);
+      color: var(--text-dark);
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    /* Navigation */
+    nav {
+      background-color: var(--primary);
+      color: white;
+      padding: 1rem 0;
+      margin-bottom: 2rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    nav .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    nav h1 {
+      font-size: 1.5rem;
+    }
+
+    nav ul {
+      display: flex;
+      list-style: none;
+      gap: 2rem;
+    }
+
+    nav button {
+      background: none;
+      border: none;
+      color: white;
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 0.5rem 1rem;
+    }
+
+    nav button:hover {
+      background-color: rgba(255,255,255,0.1);
+      border-radius: 4px;
+    }
+
+    /* Screens */
+    .screen {
+      display: none;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    /* Login Screen */
+    .login-screen {
+      max-width: 400px;
+      margin: 3rem auto;
+      background: white;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .login-screen h2 {
+      color: var(--primary);
+      margin-bottom: 1.5rem;
+      text-align: center;
+    }
+
+    .form-group {
+      margin-bottom: 1.5rem;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+      color: var(--text-dark);
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 1rem;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(44, 95, 138, 0.1);
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 4px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-weight: 500;
+    }
+
+    .btn-primary {
+      background-color: var(--primary);
+      color: white;
+      width: 100%;
+    }
+
+    .btn-primary:hover {
+      background-color: #1e4563;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(44, 95, 138, 0.3);
+    }
+
+    .btn-accent {
+      background-color: var(--accent);
+      color: white;
+    }
+
+    .btn-accent:hover {
+      background-color: #d17a1a;
+    }
+
+    .btn-success {
+      background-color: var(--success);
+      color: white;
+    }
+
+    .btn-secondary {
+      background-color: #95a5a6;
+      color: white;
+      margin-top: 1rem;
+    }
+
+    .error-message {
+      background-color: #fadbd8;
+      color: var(--error);
+      padding: 1rem;
+      border-radius: 4px;
+      margin-bottom: 1rem;
+      display: none;
+    }
+
+    .error-message.show {
+      display: block;
+    }
+
+    /* Subject Selection */
+    .subject-selection {
+      max-width: 600px;
+      margin: 2rem auto;
+      background: white;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .subject-selection h2 {
+      color: var(--primary);
+      margin-bottom: 1.5rem;
+      text-align: center;
+    }
+
+    .subject-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .subject-btn {
+      padding: 1rem;
+      border: 2px solid var(--border);
+      background: white;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.3s;
+      text-align: center;
+      font-weight: 500;
+    }
+
+    .subject-btn:hover {
+      border-color: var(--primary);
+      background-color: rgba(44, 95, 138, 0.05);
+    }
+
+    .subject-btn.selected {
+      background-color: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+
+    /* Quiz Screen */
+    .quiz-header {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .quiz-header h3 {
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+    }
+
+    .progress-bar {
+      background-color: var(--border);
+      height: 8px;
+      border-radius: 4px;
+      margin-top: 1rem;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      background-color: var(--accent);
+      height: 100%;
+      transition: width 0.3s;
+    }
+
+    .question-card {
+      background: white;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 2rem;
+    }
+
+    .question-card h4 {
+      color: var(--primary);
+      margin-bottom: 1.5rem;
+      font-size: 1.2rem;
+      line-height: 1.6;
+    }
+
+    .options {
+      margin-bottom: 2rem;
+    }
+
+    .option {
+      display: flex;
+      align-items: flex-start;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+      border: 2px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .option:hover {
+      background-color: rgba(44, 95, 138, 0.05);
+      border-color: var(--primary);
+    }
+
+    .option input {
+      margin-right: 1rem;
+      margin-top: 0.25rem;
+      cursor: pointer;
+      width: 20px;
+      height: 20px;
+    }
+
+    .option.selected {
+      background-color: rgba(44, 95, 138, 0.1);
+      border-color: var(--primary);
+    }
+
+    .option-label {
+      flex: 1;
+    }
+
+    /* Result Screen */
+    .result-card {
+      background: white;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 2rem;
+    }
+
+    .result-status {
+      display: flex;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding: 1.5rem;
+      border-radius: 6px;
+      font-size: 1.2rem;
+      font-weight: bold;
+    }
+
+    .result-status.correct {
+      background-color: #d4edda;
+      color: var(--success);
+    }
+
+    .result-status.incorrect {
+      background-color: #f8d7da;
+      color: var(--error);
+    }
+
+    .result-status::before {
+      content: '';
+      display: inline-block;
+      width: 30px;
+      height: 30px;
+      margin-right: 1rem;
+      border-radius: 50%;
+      background-color: currentColor;
+      color: white;
+    }
+
+    .explanation {
+      background-color: var(--light-bg);
+      padding: 1.5rem;
+      border-radius: 6px;
+      margin-top: 1.5rem;
+      border-left: 4px solid var(--primary);
+    }
+
+    .explanation h5 {
+      color: var(--primary);
+      margin-bottom: 0.5rem;
+    }
+
+    /* Dashboard */
+    .dashboard-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 2rem;
+    }
+
+    .chart-container {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .stats-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .stats-table th {
+      background-color: var(--primary);
+      color: white;
+      padding: 1rem;
+      text-align: left;
+      font-weight: 500;
+    }
+
+    .stats-table td {
+      padding: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .stats-table tr:hover {
+      background-color: var(--light-bg);
+    }
+
+    @media (max-width: 768px) {
+      nav ul {
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .subject-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .dashboard-container {
+        grid-template-columns: 1fr;
+      }
+
+      .container {
+        padding: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="container">
+      <h1>社会福祉士試験</h1>
+      <ul id="nav-menu" style="display: none;">
+        <li><button onclick="showDashboard()">ダッシュボード</button></li>
+        <li><button onclick="showSubjectSelection()">問題を解く</button></li>
+        <li><button onclick="logout()">ログアウト</button></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="container">
+    <!-- Login Screen -->
+    <div id="login-screen" class="screen active login-screen">
+      <h2>ログイン</h2>
+      <div class="error-message" id="login-error"></div>
+      <div class="form-group">
+        <label for="student-id">学籍番号</label>
+        <input type="text" id="student-id" placeholder="例: STU001">
+      </div>
+      <div class="form-group">
+        <label for="password">パスワード</label>
+        <input type="password" id="password" placeholder="パスワード">
+      </div>
+      <button class="btn btn-primary" onclick="login()">ログイン</button>
+    </div>
+
+    <!-- Subject Selection Screen -->
+    <div id="subject-selection" class="screen subject-selection">
+      <h2>科目を選択してください</h2>
+      <div class="subject-grid" id="subject-grid"></div>
+      <div style="display: flex; gap: 1rem;">
+        <button class="btn btn-primary" onclick="startQuizAllSubjects()">すべての科目</button>
+        <button class="btn btn-accent" onclick="startQuizWeakSubjects()">苦手科目のみ</button>
+      </div>
+    </div>
+
+    <!-- Quiz Screen -->
+    <div id="quiz-screen" class="screen">
+      <div class="quiz-header">
+        <h3 id="subject-name"></h3>
+        <div id="question-progress"></div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+      </div>
+      <div class="question-card">
+        <h4 id="question-text"></h4>
+        <div class="options" id="options-container"></div>
+        <button class="btn btn-primary" onclick="submitAnswer()">回答する</button>
+      </div>
+    </div>
+
+    <!-- Result Screen -->
+    <div id="result-screen" class="screen">
+      <div class="result-card">
+        <div id="result-status"></div>
+        <div id="explanation-container" class="explanation"></div>
+        <button class="btn btn-primary" onclick="nextQuestion()">次の問題</button>
+      </div>
+    </div>
+
+    <!-- Session Complete Screen -->
+    <div id="complete-screen" class="screen">
+      <div class="result-card">
+        <h3 style="text-align: center; margin-bottom: 1.5rem; color: var(--primary);">学習セッション完ĺ�</h3>
+        <div style="text-align: center; font-size: 1.2rem; margin-bottom: 2rem;">
+          <p>正解数: <strong id="final-correct-count">0</strong> / <strong id="final-total-count">0</strong></p>
+          <p style="font-size: 1.5rem; color: var(--accent); margin-top: 1rem;">
+            正解率: <strong id="final-accuracy">0</strong>%
+          </p>
+        </div>
+        <button class="btn btn-primary" onclick="showSubjectSelection()">別の科目を学習する</button>
+        <button class="btn btn-secondary" onclick="showDashboard()">ダッシュボードに戻る</button>
+      </div>
+    </div>
+
+    <!-- Dashboard Screen -->
+    <div id="dashboard-screen" class="screen">
+      <h2 style="color: var(--primary); margin-bottom: 2rem;">学習ダッシュボード</h2>
+      <div class="dashboard-container">
+        <div class="chart-container">
+          <h3 style="margin-bottom: 1.5rem;">科目別正解率</h3>
+          <canvas id="subjectChart"></canvas>
+        </div>
+        <div class="chart-container">
+          <h3 style="margin-bottom: 1.5rem;">学習進捗</h3>
+          <canvas id="progressChart"></canvas>
+        </div>
+      </div>
+      <div style="margin-top: 2rem;">
+        <h3 style="color: var(--primary); margin-bottom: 1.5rem;">回答履歴</h3>
+        <table class="stats-table">
+          <thead>
+            <tr>
+              <th>問題ID</th>
+              <th>科目</th>
+              <th>結果</th>
+              <th>日時</th>
+            </tr>
+          </thead>
+          <tbody id="history-tbody">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/questions.js"></script>
+  <script>
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbxFzlCOWQkKAn3yWfYsVB5YV8B-Ae59rg5msmkN-PPCunE8tayHwWiVuz5DME6BEHU/exec';
+
+    let currentUser = null;
+    let currentSubject = null;
+    let currentQuestionIndex = 0;
+    let sessionId = null;
+    let sessionStartTime = null;
+    let sessionQuestionsAnswered = 0;
+    let sessionCorrectCount = 0;
+    let selectedAnswers = [];
+    let filteredQuestions = [];
+
+    // Initialize
+    function init() {
+      const stored = localStorage.getItem('user');
+      if (stored) {
+        currentUser = JSON.parse(stored);
+        showNavMenu();
+        showSubjectSelection();
+      }
+    }
+
+    function showNavMenu() {
+      document.getElementById('nav-menu').style.display = 'flex';
+    }
+
+    function hideNavMenu() {
+      document.getElementById('nav-menu').style.display = 'none';
+    }
+
+    // Login
+    function login() {
+      const studentId = document.getElementById('student-id').value;
+      const password = document.getElementById('password').value;
+
+      if (!studentId || !password) {
+        showLoginError('学籍番号とパスワードを入力してください');
+        return;
+      }
+
+      fetch(`${GAS_URL}?action=login&student_id=${studentId}&password=${password}`)
+        .then(r => r.json())
+        .then(res => {
+          if (res.success) {
+            currentUser = res.data;
+            localStorage.setItem('user', JSON.stringify(currentUser));
+            showNavMenu();
+            showSubjectSelection();
+          } else {
+            showLoginError('ログインに失敗しました。認証情報を確認してください。');
+          }
+        })
+        .catch(err => {
+          showLoginError('通信エラーが発生しました: ' + err.message);
+        });
+    }
+
+    function showLoginError(msg) {
+      const el = document.getElementById('login-error');
+      el.textContent = msg;
+      el.classList.add('show');
+    }
+
+    function logout() {
+      currentUser = null;
+      localStorage.removeItem('user');
+      hideNavMenu();
+      showScreen('login-screen');
+      document.getElementById('student-id').value = '';
+      document.getElementById('password').value = '';
+      document.getElementById('login-error').classList.remove('show');
+    }
+
+    // Subject Selection
+    function showSubjectSelection() {
+      const grid = document.getElementById('subject-grid');
+      grid.innerHTML = '';
+      SUBJECTS.forEach((subject, idx) => {
+        const btn = document.createElement('button');
+        btn.className = 'subject-btn';
+        btn.textContent = subject;
+        btn.onclick = () => startQuiz(subject);
+        grid.appendChild(btn);
+      });
+      showScreen('subject-selection');
+    }
+
+    // Start Quiz
+    function startQuiz(subject) {
+      currentSubject = subject;
+      filteredQuestions = QUESTIONS.filter(q => q.subject === subject);
+      currentQuestionIndex = 0;
+      sessionCorrectCount = 0;
+      sessionQuestionsAnswered = 0;
+      startSession();
+    }
+
+    function startQuizAllSubjects() {
+      currentSubject = 'すべての科目';
+      filteredQuestions = QUESTIONS;
+      currentQuestionIndex = 0;
+      sessionCorrectCount = 0;
+      sessionQuestionsAnswered = 0;
+      startSession();
+    }
+
+    function startQuizWeakSubjects() {
+      // For now, treat as all subjects - in production, fetch from database
+      startQuizAllSubjects();
+    }
+
+    function startSession() {
+      fetch(`${GAS_URL}?action=startSession&student_id=${currentUser.student_id}`)
+        .then(r => r.json())
+        .then(res => {
+          sessionId = res.data.session_id;
+          sessionStartTime = new Date();
+          showQuestion();
+        })
+        .catch(err => alert('セッション開始エラー: ' + err.message));
+    }
+
+    // Quiz Display
+    function showQuestion() {
+      if (currentQuestionIndex >= filteredQuestions.length) {
+        endSession();
+        return;
+      }
+
+      const question = filteredQuestions[currentQuestionIndex];
+      selectedAnswers = [];
+
+      document.getElementById('subject-name').textContent = currentSubject;
+      document.getElementById('question-progress').textContent =
+        `${currentQuestionIndex + 1} / ${filteredQuestions.length}`;
+      document.getElementById('progress-fill').style.width =
+        `${((currentQuestionIndex + 1) / filteredQuestions.length) * 100}%`;
+
+      document.getElementById('question-text').textContent = question.text;
+
+      const container = document.getElementById('options-container');
+      container.innerHTML = '';
+
+      const isMultiAnswer = question.correctAnswers.length > 1;
+      const inputType = isMultiAnswer ? 'checkbox' : 'radio';
+
+      question.options.forEach((option, idx) => {
+        const optionNum = idx + 1;
+        const div = document.createElement('div');
+        div.className = 'option';
+        div.innerHTML = `
+          <input type="${inputType}" id="option-${optionNum}" name="answer" value="${optionNum}">
+          <label for="option-${optionNum}" class="option-label">${optionNum}. ${option}</label>
+        `;
+        div.onclick = () => {
+          const input = div.querySelector('input');
+          if (inputType === 'radio') {
+            document.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+            input.checked = !input.checked;
+            if (input.checked) {
+              div.classList.add('selected');
+              selectedAnswers = [optionNum];
+            }
+          } else {
+            input.checked = !input.checked;
+            if (input.checked) {
+              div.classList.add('selected');
+              selectedAnswers.push(optionNum);
+            } else {
+              selectedAnswers = selectedAnswers.filter(a => a !== optionNum);
+            }
+          }
+        };
+        container.appendChild(div);
+      });
+
+      showScreen('quiz-screen');
+    }
+
+    function submitAnswer() {
+      const question = filteredQuestions[currentQuestionIndex];
+      const correctAnswers = question.correctAnswers;
+      const isCorrect = JSON.stringify(selectedAnswers.sort((a,b)=>a-b)) ===
+                        JSON.stringify(correctAnswers.sort((a,b)=>a-b));
+
+      fetch(`${GAS_URL}?action=submitAnswer`, {
+        method: 'POST',
+        body: new URLSearchParams({
+          student_id: currentUser.student_id,
+          question_id: question.id,
+          selected_answers: JSON.stringify(selectedAnswers),
+          is_correct: isCorrect,
+          subject: question.subject
+        })
+      })
+        .then(r => r.json())
+        .then(res => {
+          if (isCorrect) sessionCorrectCount++;
+          sessionQuestionsAnswered++;
+          showResult(question, isCorrect);
+        })
+        .catch(err => alert('回答送信エラー: ' + err.message));
+    }
+
+    function showResult(question, isCorrect) {
+      const statusEl = document.getElementById('result-status');
+      statusEl.className = `result-status ${isCorrect ? 'correct' : 'incorrect'}`;
+      statusEl.textContent = isCorrect ? '正解' : '不正解';
+
+      const explanationEl = document.getElementById('explanation-container');
+      explanationEl.innerHTML = `
+        <h5>解説</h5>
+        <p>${question.explanation}</p>
+        <p style="margin-top: 1rem; font-size: 0.9rem; color: var(--text-light);">
+          <strong>正解: ${question.correctAnswers.join(', ')}</strong>
+        </p>
+      `;
+
+      showScreen('result-screen');
+    }
+
+    function nextQuestion() {
+      currentQuestionIndex++;
+      if (currentQuestionIndex < filteredQuestions.length) {
+        showQuestion();
+      } else {
+        endSession();
+      }
+    }
+
+    function endSession() {
+      fetch(`${GAS_URL}?action=endSession`, {
+        method: 'POST',
+        body: new URLSearchParams({
+          session_id: sessionId,
+          questions_answered: sessionQuestionsAnswered,
+          correct_count: sessionCorrectCount
+        })
+      })
+        .then(r => r.json())
+        .then(res => {
+          const accuracy = sessionQuestionsAnswered > 0
+            ? Math.round((sessionCorrectCount / sessionQuestionsAnswered) * 100)
+            : 0;
+          document.getElementById('final-correct-count').textContent = sessionCorrectCount;
+          document.getElementById('final-total-count').textContent = sessionQuestionsAnswered;
+          document.getElementById('final-accuracy').textContent = accuracy;
+          showScreen('complete-screen');
+        })
+        .catch(err => alert('セッション終了エラー: ' + err.message));
+    }
+
+    // Dashboard
+    function showDashboard() {
+      fetch(`${GAS_URL}?action=getProgress&student_id=${currentUser.student_id}`)
+        .then(r => r.json())
+        .then(res => {
+          displayDashboard(res.data.answers);
+          showScreen('dashboard-screen');
+        })
+        .catch(err => alert('ダッシュボード読み込みエラー: ' + err.message));
+    }
+
+    function displayDashboard(answers) {
+      // Subject stats
+      const subjectStats = {};
+      answers.forEach(a => {
+        if (!subjectStats[a.subject]) {
+          subjectStats[a.subject] = { answered: 0, correct: 0 };
+        }
+        subjectStats[a.subject].answered++;
+        if (a.is_correct) subjectStats[a.subject].correct++;
+      });
+
+      const labels = Object.keys(subjectStats);
+      const data = labels.map(s => {
+        const stat = subjectStats[s];
+        return Math.round((stat.correct / stat.answered) * 100);
+      });
+
+      // Chart 1: Subject accuracy
+      const ctx1 = document.getElementById('subjectChart').getContext('2d');
+      new Chart(ctx1, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: '正解率 (%)',
+            data: data,
+            backgroundColor: 'rgba(44, 95, 138, 0.8)',
+            borderColor: 'rgba(44, 95, 138, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: { beginAtZero: true, max: 100 }
+          }
+        }
+      });
+
+      // Chart 2: Progress
+      const correctCount = answers.filter(a => a.is_correct).length;
+      const ctx2 = document.getElementById('progressChart').getContext('2d');
+      new Chart(ctx2, {
+        type: 'doughnut',
+        data: {
+          labels: ['正解', '不正解'],
+          datasets: [{
+            data: [correctCount, answers.length - correctCount],
+            backgroundColor: ['rgba(39, 174, 96, 0.8)', 'rgba(231, 76, 60, 0.8)']
+          }]
+        },
+        options: { responsive: true }
+      });
+
+      // History table
+      const tbody = document.getElementById('history-tbody');
+      tbody.innerHTML = '';
+      answers.slice(-20).reverse().forEach(a => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>Q${a.question_id}</td>
+          <td>${a.subject}</td>
+          <td><span style="color: ${a.is_correct ? 'var(--success)' : 'var(--error)'}">
+            ${a.is_correct ? '正解' : '不正解'}</span></td>
+          <td>${new Date(a.timestamp).toLocaleString('ja-JP')}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Screen Management
+    function showScreen(screenId) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(screenId).classList.add('active');
+    }
+
+    init();
+  </script>
+</body>
+</html>
