@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>社会福祉士国家試験 学習アプリ</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root {
       --primary: #2c5f8a;
@@ -545,71 +545,55 @@
     </div>
   </div>
 
-  <script src="js/questions.js" defer></script>
+  <script src="js/questions.js"></script>
   <script>
-  // Wait for questions.js (deferred) to finish loading before running app code
-  document.addEventListener('DOMContentLoaded', function() {
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbxFzlCOWQkKAn3yWfYsVB5YV8B-Ae59rg5msmkN-PPCunE8tayHwWiVuz5DME6BEHU/exec';
+    var GAS_URL = 'https://script.google.com/macros/s/AKfycbxFzlCOWQkKAn3yWfYsVB5YV8B-Ae59rg5msmkN-PPCunE8tayHwWiVuz5DME6BEHU/exec';
 
-    let currentUser = null;
-    let currentSubject = null;
-    let currentQuestionIndex = 0;
-    let sessionId = null;
-    let sessionStartTime = null;
-    let sessionQuestionsAnswered = 0;
-    let sessionCorrectCount = 0;
-    let selectedAnswers = [];
-    let filteredQuestions = [];
-    let subjectChartInstance = null;
-    let progressChartInstance = null;
-    let answerHistory = []; // [{isCorrect}] — used to undo counters on prevQuestion
+    var currentUser = null;
+    var currentSubject = null;
+    var currentQuestionIndex = 0;
+    var sessionId = null;
+    var sessionQuestionsAnswered = 0;
+    var sessionCorrectCount = 0;
+    var selectedAnswers = [];
+    var filteredQuestions = [];
+    var answerHistory = [];
+    var subjectChartInstance = null;
+    var progressChartInstance = null;
 
-    // Initialize
     function init() {
-      const stored = localStorage.getItem('user');
+      var stored = localStorage.getItem('user');
       if (stored) {
         currentUser = JSON.parse(stored);
         showNavMenu();
         showSubjectSelection();
       }
-      // Allow Enter key on login form
-      ['student-id', 'password'].forEach(id => {
-        document.getElementById(id).addEventListener('keydown', e => {
-          if (e.key === 'Enter') login();
-        });
-      });
-      // Pre-fill last used student ID
-      const lastId = localStorage.getItem('lastStudentId');
+      // Enter key for login
+      document.getElementById('student-id').addEventListener('keydown', function(e){ if(e.key==='Enter') login(); });
+      document.getElementById('password').addEventListener('keydown', function(e){ if(e.key==='Enter') login(); });
+      // Pre-fill last student ID
+      var lastId = localStorage.getItem('lastStudentId');
       if (lastId) document.getElementById('student-id').value = lastId;
     }
 
-    function showNavMenu() {
-      document.getElementById('nav-menu').style.display = 'flex';
-    }
+    function showNavMenu() { document.getElementById('nav-menu').style.display = 'flex'; }
+    function hideNavMenu() { document.getElementById('nav-menu').style.display = 'none'; }
 
-    function hideNavMenu() {
-      document.getElementById('nav-menu').style.display = 'none';
-    }
-
-    // Login
     function login() {
-      const studentId = document.getElementById('student-id').value.trim();
-      const password = document.getElementById('password').value;
-
+      var studentId = document.getElementById('student-id').value.trim();
+      var password = document.getElementById('password').value;
       if (!studentId || !password) {
         showLoginError('学籍番号とパスワードを入力してください');
         return;
       }
-
-      // Show loading state immediately
-      const btn = document.getElementById('login-btn');
+      var btn = document.getElementById('login-btn');
       btn.textContent = 'ログイン中...';
       btn.disabled = true;
       document.getElementById('login-error').classList.remove('show');
 
-      fetch(`${GAS_URL}?action=login&student_id=${studentId}&password=${password}`)
-        .then(r => r.json())
-        .then(res => {
+      fetch(GAS_URL + '?action=login&student_id=' + studentId + '&password=' + password)
+        .then(function(r){ return r.json(); })
+        .then(function(res){
           if (res.success) {
             currentUser = res.data;
             localStorage.setItem('user', JSON.stringify(currentUser));
@@ -622,7 +606,7 @@
             showLoginError('ログインに失敗しました。認証情報を確認してください。');
           }
         })
-        .catch(err => {
+        .catch(function(err){
           btn.textContent = 'ログイン';
           btn.disabled = false;
           showLoginError('通信エラーが発生しました: ' + err.message);
@@ -630,7 +614,7 @@
     }
 
     function showLoginError(msg) {
-      const el = document.getElementById('login-error');
+      var el = document.getElementById('login-error');
       el.textContent = msg;
       el.classList.add('show');
     }
@@ -645,96 +629,81 @@
       document.getElementById('login-error').classList.remove('show');
     }
 
-    // Subject Selection
     function showSubjectSelection() {
-      const grid = document.getElementById('subject-grid');
+      var grid = document.getElementById('subject-grid');
       grid.innerHTML = '';
-      SUBJECTS.forEach((subject, idx) => {
-        const btn = document.createElement('button');
+      SUBJECTS.forEach(function(subject) {
+        var btn = document.createElement('button');
         btn.className = 'subject-btn';
         btn.textContent = subject;
-        btn.onclick = () => startQuiz(subject);
+        btn.onclick = function(){ startQuiz(subject); };
         grid.appendChild(btn);
       });
       showScreen('subject-selection');
     }
 
-    // Start Quiz
     function startQuiz(subject) {
       currentSubject = subject;
-      filteredQuestions = QUESTIONS.filter(q => q.subject === subject);
-      currentQuestionIndex = 0;
-      sessionCorrectCount = 0;
-      sessionQuestionsAnswered = 0;
-      answerHistory = [];
-      startSession();
+      filteredQuestions = QUESTIONS.filter(function(q){ return q.subject === subject; });
+      resetSession();
     }
 
     function startQuizAllSubjects() {
       currentSubject = 'すべての科目';
       filteredQuestions = QUESTIONS;
+      resetSession();
+    }
+
+    function startQuizWeakSubjects() {
+      startQuizAllSubjects();
+    }
+
+    function resetSession() {
       currentQuestionIndex = 0;
       sessionCorrectCount = 0;
       sessionQuestionsAnswered = 0;
       answerHistory = [];
-      startSession();
-    }
-
-    function startQuizWeakSubjects() {
-      // For now, treat as all subjects - in production, fetch from database
-      startQuizAllSubjects();
-    }
-
-    function startSession() {
-      // Generate a local session ID immediately so we don't wait for the server
+      // Start session in background, show first question immediately
       sessionId = 'local_' + Date.now();
-      sessionStartTime = new Date();
+      fetch(GAS_URL + '?action=startSession&student_id=' + currentUser.student_id)
+        .then(function(r){ return r.json(); })
+        .then(function(res){ sessionId = res.data.session_id; })
+        .catch(function(){});
       showQuestion();
-      // Fire-and-forget: update session ID in background
-      fetch(`${GAS_URL}?action=startSession&student_id=${currentUser.student_id}`)
-        .then(r => r.json())
-        .then(res => { sessionId = res.data.session_id; })
-        .catch(() => {}); // silently ignore errors
     }
 
-    // Quiz Display
     function showQuestion() {
       if (currentQuestionIndex >= filteredQuestions.length) {
         endSession();
         return;
       }
-
-      const question = filteredQuestions[currentQuestionIndex];
+      var question = filteredQuestions[currentQuestionIndex];
       selectedAnswers = [];
 
       document.getElementById('subject-name').textContent = currentSubject;
       document.getElementById('question-progress').textContent =
-        `${currentQuestionIndex + 1} / ${filteredQuestions.length}`;
+        (currentQuestionIndex + 1) + ' / ' + filteredQuestions.length;
       document.getElementById('progress-fill').style.width =
-        `${((currentQuestionIndex + 1) / filteredQuestions.length) * 100}%`;
-
+        (((currentQuestionIndex + 1) / filteredQuestions.length) * 100) + '%';
       document.getElementById('question-text').textContent = question.text;
 
-      const container = document.getElementById('options-container');
+      var container = document.getElementById('options-container');
       container.innerHTML = '';
+      var isMulti = question.correctAnswers.length > 1;
+      var inputType = isMulti ? 'checkbox' : 'radio';
 
-      const isMultiAnswer = question.correctAnswers.length > 1;
-      const inputType = isMultiAnswer ? 'checkbox' : 'radio';
-
-      question.options.forEach((option, idx) => {
-        const optionNum = idx + 1;
-        const div = document.createElement('div');
+      question.options.forEach(function(option, idx) {
+        var optionNum = idx + 1;
+        var div = document.createElement('div');
         div.className = 'option';
-        // No "for" attribute on label to prevent double-toggle; div.onclick handles all selection
-        div.innerHTML = `
-          <input type="${inputType}" id="option-${optionNum}" name="answer" value="${optionNum}">
-          <label class="option-label">${optionNum}. ${option}</label>
-        `;
-        const handleSelect = (e) => {
-          e.preventDefault();
-          const input = div.querySelector('input');
+        div.innerHTML =
+          '<input type="' + inputType + '" name="answer" value="' + optionNum + '">' +
+          '<label class="option-label">' + optionNum + '. ' + option + '</label>';
+
+        div.onclick = function() {
+          var input = div.querySelector('input');
           if (inputType === 'radio') {
-            document.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+            document.querySelectorAll('.option').forEach(function(o){ o.classList.remove('selected'); });
             input.checked = true;
             div.classList.add('selected');
             selectedAnswers = [optionNum];
@@ -742,18 +711,13 @@
             input.checked = !input.checked;
             if (input.checked) {
               div.classList.add('selected');
-              if (!selectedAnswers.includes(optionNum)) selectedAnswers.push(optionNum);
+              if (selectedAnswers.indexOf(optionNum) === -1) selectedAnswers.push(optionNum);
             } else {
               div.classList.remove('selected');
-              selectedAnswers = selectedAnswers.filter(a => a !== optionNum);
+              selectedAnswers = selectedAnswers.filter(function(a){ return a !== optionNum; });
             }
           }
         };
-        div.addEventListener('touchstart', handleSelect, { passive: false });
-        div.addEventListener('click', (e) => {
-          // skip on touch devices (already handled by touchstart)
-          if (e.sourceCapabilities && !e.sourceCapabilities.firesTouchEvents) handleSelect(e);
-        });
         container.appendChild(div);
       });
 
@@ -761,19 +725,18 @@
     }
 
     function submitAnswer() {
-      const question = filteredQuestions[currentQuestionIndex];
-      const correctAnswers = question.correctAnswers;
-      const isCorrect = JSON.stringify(selectedAnswers.sort((a,b)=>a-b)) ===
-                        JSON.stringify(correctAnswers.sort((a,b)=>a-b));
+      var question = filteredQuestions[currentQuestionIndex];
+      var correct = question.correctAnswers.slice().sort(function(a,b){return a-b;});
+      var selected = selectedAnswers.slice().sort(function(a,b){return a-b;});
+      var isCorrect = JSON.stringify(selected) === JSON.stringify(correct);
 
-      // Update counters and show result immediately — no waiting for the server
+      // Update counters and show result immediately
       if (isCorrect) sessionCorrectCount++;
       sessionQuestionsAnswered++;
-      answerHistory.push({ isCorrect }); // track for prevQuestion undo
-      showResult(question, isCorrect);
+      answerHistory.push({ isCorrect: isCorrect });
 
-      // Fire-and-forget: save answer in background
-      fetch(`${GAS_URL}?action=submitAnswer`, {
+      // Save to server in background
+      fetch(GAS_URL + '?action=submitAnswer', {
         method: 'POST',
         body: new URLSearchParams({
           student_id: currentUser.student_id,
@@ -782,24 +745,23 @@
           is_correct: isCorrect,
           subject: question.subject
         })
-      }).catch(() => {}); // silently ignore errors
+      }).catch(function(){});
+
+      showResult(question, isCorrect);
     }
 
     function showResult(question, isCorrect) {
-      const statusEl = document.getElementById('result-status');
-      statusEl.className = `result-status ${isCorrect ? 'correct' : 'incorrect'}`;
+      var statusEl = document.getElementById('result-status');
+      statusEl.className = 'result-status ' + (isCorrect ? 'correct' : 'incorrect');
       statusEl.textContent = isCorrect ? '正解' : '不正解';
 
-      const explanationEl = document.getElementById('explanation-container');
-      explanationEl.innerHTML = `
-        <h5>解説</h5>
-        <p>${question.explanation}</p>
-        <p style="margin-top: 1rem; font-size: 0.9rem; color: var(--text-light);">
-          <strong>正解: ${question.correctAnswers.join(', ')}</strong>
-        </p>
-      `;
+      document.getElementById('explanation-container').innerHTML =
+        '<h5>解説</h5>' +
+        '<p>' + question.explanation + '</p>' +
+        '<p style="margin-top:1rem;font-size:0.9rem;color:var(--text-light)">' +
+        '<strong>正解: ' + question.correctAnswers.join(', ') + '</strong></p>';
 
-      // Show "前の問題に戻る" only when there is a previous question
+      // "前の問題に戻る" is visible from 2nd question onward
       document.getElementById('prev-question-btn').style.display =
         currentQuestionIndex > 0 ? 'block' : 'none';
 
@@ -807,13 +769,11 @@
     }
 
     function prevQuestion() {
-      // Undo the counters for the question we are leaving
-      if (answerHistory.length > 0) {
-        const last = answerHistory.pop();
-        sessionQuestionsAnswered--;
-        if (last.isCorrect) sessionCorrectCount--;
-      }
-      // Go back one question
+      // Undo this question's contribution to counters
+      var last = answerHistory.pop();
+      sessionQuestionsAnswered--;
+      if (last && last.isCorrect) sessionCorrectCount--;
+      // Go back to previous question
       currentQuestionIndex--;
       showQuestion();
     }
@@ -828,117 +788,80 @@
     }
 
     function endSession() {
-      // Show completion screen immediately using locally tracked stats
-      const accuracy = sessionQuestionsAnswered > 0
-        ? Math.round((sessionCorrectCount / sessionQuestionsAnswered) * 100)
-        : 0;
+      var accuracy = sessionQuestionsAnswered > 0
+        ? Math.round((sessionCorrectCount / sessionQuestionsAnswered) * 100) : 0;
       document.getElementById('final-correct-count').textContent = sessionCorrectCount;
       document.getElementById('final-total-count').textContent = sessionQuestionsAnswered;
       document.getElementById('final-accuracy').textContent = accuracy;
       showScreen('complete-screen');
 
-      // Fire-and-forget: save session in background
-      fetch(`${GAS_URL}?action=endSession`, {
+      fetch(GAS_URL + '?action=endSession', {
         method: 'POST',
         body: new URLSearchParams({
           session_id: sessionId,
           questions_answered: sessionQuestionsAnswered,
           correct_count: sessionCorrectCount
         })
-      }).catch(() => {}); // silently ignore errors
+      }).catch(function(){});
     }
 
-    // Dashboard
     function showDashboard() {
-      fetch(`${GAS_URL}?action=getProgress&student_id=${currentUser.student_id}`)
-        .then(r => r.json())
-        .then(res => {
+      fetch(GAS_URL + '?action=getProgress&student_id=' + currentUser.student_id)
+        .then(function(r){ return r.json(); })
+        .then(function(res){
           displayDashboard(res.data.answers);
           showScreen('dashboard-screen');
         })
-        .catch(err => alert('ダッシュボード読み込みエラー: ' + err.message));
+        .catch(function(err){ alert('ダッシュボード読み込みエラー: ' + err.message); });
     }
 
     function displayDashboard(answers) {
-      // Subject stats
-      const subjectStats = {};
-      answers.forEach(a => {
-        if (!subjectStats[a.subject]) {
-          subjectStats[a.subject] = { answered: 0, correct: 0 };
-        }
+      var subjectStats = {};
+      answers.forEach(function(a) {
+        if (!subjectStats[a.subject]) subjectStats[a.subject] = { answered: 0, correct: 0 };
         subjectStats[a.subject].answered++;
         if (a.is_correct) subjectStats[a.subject].correct++;
       });
-
-      const labels = Object.keys(subjectStats);
-      const data = labels.map(s => {
-        const stat = subjectStats[s];
-        return Math.round((stat.correct / stat.answered) * 100);
+      var labels = Object.keys(subjectStats);
+      var data = labels.map(function(s){
+        return Math.round((subjectStats[s].correct / subjectStats[s].answered) * 100);
       });
 
-      // Chart 1: Subject accuracy
       if (subjectChartInstance) { subjectChartInstance.destroy(); subjectChartInstance = null; }
-      const ctx1 = document.getElementById('subjectChart').getContext('2d');
-      subjectChartInstance = new Chart(ctx1, {
+      subjectChartInstance = new Chart(document.getElementById('subjectChart').getContext('2d'), {
         type: 'bar',
-        data: {
-          labels: labels,
-          datasets: [{
-            label: '正解率 (%)',
-            data: data,
-            backgroundColor: 'rgba(44, 95, 138, 0.8)',
-            borderColor: 'rgba(44, 95, 138, 1)',
-            borderWidth: 1
-          }]
-        },
-        options: {
-          responsive: true,
-          scales: {
-            y: { beginAtZero: true, max: 100 }
-          }
-        }
+        data: { labels: labels, datasets: [{ label: '正解率 (%)', data: data,
+          backgroundColor: 'rgba(44,95,138,0.8)', borderColor: 'rgba(44,95,138,1)', borderWidth: 1 }] },
+        options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 } } }
       });
 
-      // Chart 2: Progress
       if (progressChartInstance) { progressChartInstance.destroy(); progressChartInstance = null; }
-      const correctCount = answers.filter(a => a.is_correct).length;
-      const ctx2 = document.getElementById('progressChart').getContext('2d');
-      progressChartInstance = new Chart(ctx2, {
+      var correctCount = answers.filter(function(a){ return a.is_correct; }).length;
+      progressChartInstance = new Chart(document.getElementById('progressChart').getContext('2d'), {
         type: 'doughnut',
-        data: {
-          labels: ['正解', '不正解'],
-          datasets: [{
-            data: [correctCount, answers.length - correctCount],
-            backgroundColor: ['rgba(39, 174, 96, 0.8)', 'rgba(231, 76, 60, 0.8)']
-          }]
-        },
+        data: { labels: ['正解','不正解'], datasets: [{ data: [correctCount, answers.length - correctCount],
+          backgroundColor: ['rgba(39,174,96,0.8)','rgba(231,76,60,0.8)'] }] },
         options: { responsive: true }
       });
 
-      // History table
-      const tbody = document.getElementById('history-tbody');
+      var tbody = document.getElementById('history-tbody');
       tbody.innerHTML = '';
-      answers.slice(-20).reverse().forEach(a => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>Q${a.question_id}</td>
-          <td>${a.subject}</td>
-          <td><span style="color: ${a.is_correct ? 'var(--success)' : 'var(--error)'}">
-            ${a.is_correct ? '正解' : '不正解'}</span></td>
-          <td>${new Date(a.timestamp).toLocaleString('ja-JP')}</td>
-        `;
+      answers.slice(-20).reverse().forEach(function(a) {
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td>Q' + a.question_id + '</td><td>' + a.subject + '</td>' +
+          '<td><span style="color:' + (a.is_correct ? 'var(--success)' : 'var(--error)') + '">' +
+          (a.is_correct ? '正解' : '不正解') + '</span></td>' +
+          '<td>' + new Date(a.timestamp).toLocaleString('ja-JP') + '</td>';
         tbody.appendChild(tr);
       });
     }
 
-    // Screen Management
     function showScreen(screenId) {
-      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
       document.getElementById(screenId).classList.add('active');
     }
 
     init();
-  }); // end DOMContentLoaded
   </script>
 </body>
 </html>
