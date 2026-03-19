@@ -546,7 +546,9 @@
   </div>
 
   <script src="js/questions.js" defer></script>
-  <script defer>
+  <script>
+  // Wait for questions.js (deferred) to finish loading before running app code
+  document.addEventListener('DOMContentLoaded', function() {
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbxFzlCOWQkKAn3yWfYsVB5YV8B-Ae59rg5msmkN-PPCunE8tayHwWiVuz5DME6BEHU/exec';
 
     let currentUser = null;
@@ -962,6 +964,7 @@
     }
 
     init();
+  }); // end DOMContentLoaded
   </script>
 </body>
 </html>
