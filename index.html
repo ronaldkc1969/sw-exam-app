@@ -131,8 +131,10 @@
       border-radius: 4px;
       font-size: 1rem;
       cursor: pointer;
-      transition: all 0.3s;
       font-weight: 500;
+      touch-action: manipulation; /* eliminates 300ms mobile tap delay */
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
     }
 
     .btn-primary {
@@ -143,8 +145,11 @@
 
     .btn-primary:hover {
       background-color: #1e4563;
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(44, 95, 138, 0.3);
+    }
+
+    .btn-primary:active {
+      background-color: #1a3d58;
+      transform: scale(0.98);
     }
 
     .btn-accent {
@@ -154,6 +159,11 @@
 
     .btn-accent:hover {
       background-color: #d17a1a;
+    }
+
+    .btn-accent:active {
+      background-color: #b8691a;
+      transform: scale(0.98);
     }
 
     .btn-success {
@@ -209,9 +219,11 @@
       background: white;
       border-radius: 6px;
       cursor: pointer;
-      transition: all 0.3s;
       text-align: center;
       font-weight: 500;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
     }
 
     .subject-btn:hover {
@@ -280,7 +292,9 @@
       border: 2px solid var(--border);
       border-radius: 6px;
       cursor: pointer;
-      transition: all 0.3s;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
     }
 
     .option:hover {
@@ -690,7 +704,8 @@
           <input type="${inputType}" id="option-${optionNum}" name="answer" value="${optionNum}">
           <label class="option-label">${optionNum}. ${option}</label>
         `;
-        div.onclick = () => {
+        const handleSelect = (e) => {
+          e.preventDefault();
           const input = div.querySelector('input');
           if (inputType === 'radio') {
             document.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
@@ -708,6 +723,11 @@
             }
           }
         };
+        div.addEventListener('touchstart', handleSelect, { passive: false });
+        div.addEventListener('click', (e) => {
+          // skip on touch devices (already handled by touchstart)
+          if (e.sourceCapabilities && !e.sourceCapabilities.firesTouchEvents) handleSelect(e);
+        });
         container.appendChild(div);
       });
 
