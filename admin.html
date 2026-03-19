@@ -306,36 +306,13 @@
       </div>
 
       <div class="chart-container">
-        <h3>学習セッション</h3>
-        <table class="stats-table">
-          <thead>
-            <tr>
-              <th>開始時刻</th>
-              <th>終了時刻</th>
-              <th>解答数</th>
-              <th>正解数</th>
-              <th>正解率</th>
-            </tr>
-          </thead>
-          <tbody id="sessions-tbody">
-          </tbody>
-        </table>
+        <h3>日毎の学習合計時間（分）</h3>
+        <canvas id="dailyTimeChart"></canvas>
       </div>
 
       <div class="chart-container">
-        <h3>解答履歴</h3>
-        <table class="stats-table">
-          <thead>
-            <tr>
-              <th>問題ID</th>
-              <th>科目</th>
-              <th>結果</th>
-              <th>日時</th>
-            </tr>
-          </thead>
-          <tbody id="answers-tbody">
-          </tbody>
-        </table>
+        <h3>分野別解答数</h3>
+        <canvas id="subjectCountChart"></canvas>
       </div>
     </div>
   </div>
@@ -346,6 +323,9 @@
 
     let currentTeacher = null;
     let currentStudentId = null;
+    let subjectDetailChartInstance = null;
+    let dailyTimeChartInstance = null;
+    let subjectCountChartInstance = null;
 
     // Initialize
     function init() {
@@ -454,19 +434,20 @@
       document.getElementById('student-detail-id').textContent = studentId;
       document.getElementById('student-detail-name').textContent = getStudentName(studentId);
 
-      // Chart: Subject accuracy
+      // --- Chart 1: Subject accuracy ---
       const subjectStats = data.subjectStats;
-      const labels = Object.keys(subjectStats);
-      const accuracyData = labels.map(subject => {
+      const subjectLabels = Object.keys(subjectStats);
+      const accuracyData = subjectLabels.map(function(subject) {
         const stat = subjectStats[subject];
         return Math.round((stat.correct / stat.answered) * 100);
       });
 
-      const ctx = document.getElementById('subjectDetailChart').getContext('2d');
-      new Chart(ctx, {
+      if (subjectDetailChartInstance) { subjectDetailChartInstance.destroy(); subjectDetailChartInstance = null; }
+      subjectDetailChartInstance = new Chart(
+        document.getElementById('subjectDetailChart').getContext('2d'), {
         type: 'bar',
         data: {
-          labels: labels,
+          labels: subjectLabels,
           datasets: [{
             label: '正解率 (%)',
             data: accuracyData,
@@ -475,45 +456,59 @@
             borderWidth: 1
           }]
         },
-        options: {
-          responsive: true,
-          scales: {
-            y: { beginAtZero: true, max: 100 }
-          }
-        }
+        options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 } } }
       });
 
-      // Sessions table
-      const sessionsTbody = document.getElementById('sessions-tbody');
-      sessionsTbody.innerHTML = '';
-      data.sessions.forEach(session => {
-        const tr = document.createElement('tr');
-        const accuracy = session.questions_answered > 0
-          ? Math.round((session.correct_count / session.questions_answered) * 100)
-          : 0;
-        tr.innerHTML = `
-          <td>${new Date(session.start_time).toLocaleString('ja-JP')}</td>
-          <td>${session.end_time ? new Date(session.end_time).toLocaleString('ja-JP') : '-'}</td>
-          <td>${session.questions_answered}</td>
-          <td>${session.correct_count}</td>
-          <td>${accuracy}%</td>
-        `;
-        sessionsTbody.appendChild(tr);
+      // --- Chart 2: Daily total learning time (minutes) from sessions ---
+      const dailyMinutes = {};
+      (data.sessions || []).forEach(function(session) {
+        if (!session.start_time || !session.end_time) return;
+        const start = new Date(session.start_time);
+        const end = new Date(session.end_time);
+        const mins = Math.round((end - start) / 60000);
+        if (mins <= 0) return;
+        const dateKey = start.toLocaleDateString('ja-JP');
+        dailyMinutes[dateKey] = (dailyMinutes[dateKey] || 0) + mins;
+      });
+      const dailyLabels = Object.keys(dailyMinutes).sort();
+      const dailyData = dailyLabels.map(function(d) { return dailyMinutes[d]; });
+
+      if (dailyTimeChartInstance) { dailyTimeChartInstance.destroy(); dailyTimeChartInstance = null; }
+      dailyTimeChartInstance = new Chart(
+        document.getElementById('dailyTimeChart').getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: dailyLabels.length ? dailyLabels : ['データなし'],
+          datasets: [{
+            label: '学習時間（分）',
+            data: dailyData.length ? dailyData : [0],
+            backgroundColor: 'rgba(232, 145, 44, 0.8)',
+            borderColor: 'rgba(232, 145, 44, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
       });
 
-      // Answers table
-      const answersTbody = document.getElementById('answers-tbody');
-      answersTbody.innerHTML = '';
-      data.answers.slice(-30).reverse().forEach(answer => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>Q${answer.question_id}</td>
-          <td>${answer.subject}</td>
-          <td><span style="color: ${answer.is_correct ? 'var(--success)' : 'var(--error)'}">
-            ${answer.is_correct ? '正解' : '不正解'}</span></td>
-          <td>${new Date(answer.timestamp).toLocaleString('ja-JP')}</td>
-        `;
-        answersTbody.appendChild(tr);
+      // --- Chart 3: Subject answer count ---
+      const subjectCountLabels = Object.keys(subjectStats);
+      const subjectCountData = subjectCountLabels.map(function(s) { return subjectStats[s].answered; });
+
+      if (subjectCountChartInstance) { subjectCountChartInstance.destroy(); subjectCountChartInstance = null; }
+      subjectCountChartInstance = new Chart(
+        document.getElementById('subjectCountChart').getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: subjectCountLabels,
+          datasets: [{
+            label: '解答数',
+            data: subjectCountData,
+            backgroundColor: 'rgba(39, 174, 96, 0.8)',
+            borderColor: 'rgba(39, 174, 96, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
       });
     }
 
