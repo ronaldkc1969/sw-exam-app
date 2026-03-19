@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>社会福祉士国家試験 学習アプリ</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
   <style>
     :root {
       --primary: #2c5f8a;
@@ -530,8 +530,8 @@
     </div>
   </div>
 
-  <script src="js/questions.js"></script>
-  <script>
+  <script src="js/questions.js" defer></script>
+  <script defer>
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbxFzlCOWQkKAn3yWfYsVB5YV8B-Ae59rg5msmkN-PPCunE8tayHwWiVuz5DME6BEHU/exec';
 
     let currentUser = null;
@@ -646,14 +646,15 @@
     }
 
     function startSession() {
+      // Generate a local session ID immediately so we don't wait for the server
+      sessionId = 'local_' + Date.now();
+      sessionStartTime = new Date();
+      showQuestion();
+      // Fire-and-forget: update session ID in background
       fetch(`${GAS_URL}?action=startSession&student_id=${currentUser.student_id}`)
         .then(r => r.json())
-        .then(res => {
-          sessionId = res.data.session_id;
-          sessionStartTime = new Date();
-          showQuestion();
-        })
-        .catch(err => alert('セッション開始エラー: ' + err.message));
+        .then(res => { sessionId = res.data.session_id; })
+        .catch(() => {}); // silently ignore errors
     }
 
     // Quiz Display
@@ -719,6 +720,12 @@
       const isCorrect = JSON.stringify(selectedAnswers.sort((a,b)=>a-b)) ===
                         JSON.stringify(correctAnswers.sort((a,b)=>a-b));
 
+      // Update counters and show result immediately — no waiting for the server
+      if (isCorrect) sessionCorrectCount++;
+      sessionQuestionsAnswered++;
+      showResult(question, isCorrect);
+
+      // Fire-and-forget: save answer in background
       fetch(`${GAS_URL}?action=submitAnswer`, {
         method: 'POST',
         body: new URLSearchParams({
@@ -728,14 +735,7 @@
           is_correct: isCorrect,
           subject: question.subject
         })
-      })
-        .then(r => r.json())
-        .then(res => {
-          if (isCorrect) sessionCorrectCount++;
-          sessionQuestionsAnswered++;
-          showResult(question, isCorrect);
-        })
-        .catch(err => alert('回答送信エラー: ' + err.message));
+      }).catch(() => {}); // silently ignore errors
     }
 
     function showResult(question, isCorrect) {
@@ -765,6 +765,16 @@
     }
 
     function endSession() {
+      // Show completion screen immediately using locally tracked stats
+      const accuracy = sessionQuestionsAnswered > 0
+        ? Math.round((sessionCorrectCount / sessionQuestionsAnswered) * 100)
+        : 0;
+      document.getElementById('final-correct-count').textContent = sessionCorrectCount;
+      document.getElementById('final-total-count').textContent = sessionQuestionsAnswered;
+      document.getElementById('final-accuracy').textContent = accuracy;
+      showScreen('complete-screen');
+
+      // Fire-and-forget: save session in background
       fetch(`${GAS_URL}?action=endSession`, {
         method: 'POST',
         body: new URLSearchParams({
@@ -772,18 +782,7 @@
           questions_answered: sessionQuestionsAnswered,
           correct_count: sessionCorrectCount
         })
-      })
-        .then(r => r.json())
-        .then(res => {
-          const accuracy = sessionQuestionsAnswered > 0
-            ? Math.round((sessionCorrectCount / sessionQuestionsAnswered) * 100)
-            : 0;
-          document.getElementById('final-correct-count').textContent = sessionCorrectCount;
-          document.getElementById('final-total-count').textContent = sessionQuestionsAnswered;
-          document.getElementById('final-accuracy').textContent = accuracy;
-          showScreen('complete-screen');
-        })
-        .catch(err => alert('セッション終了エラー: ' + err.message));
+      }).catch(() => {}); // silently ignore errors
     }
 
     // Dashboard
