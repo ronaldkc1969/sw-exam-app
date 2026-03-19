@@ -562,8 +562,7 @@
     let filteredQuestions = [];
     let subjectChartInstance = null;
     let progressChartInstance = null;
-    let answerHistory = [];      // [{question, isCorrect}]
-    let displayResultIndex = -1; // index into answerHistory currently shown
+    let answerHistory = []; // [{isCorrect}] — used to undo counters on prevQuestion
 
     // Initialize
     function init() {
@@ -668,7 +667,6 @@
       sessionCorrectCount = 0;
       sessionQuestionsAnswered = 0;
       answerHistory = [];
-      displayResultIndex = -1;
       startSession();
     }
 
@@ -679,7 +677,6 @@
       sessionCorrectCount = 0;
       sessionQuestionsAnswered = 0;
       answerHistory = [];
-      displayResultIndex = -1;
       startSession();
     }
 
@@ -772,6 +769,7 @@
       // Update counters and show result immediately — no waiting for the server
       if (isCorrect) sessionCorrectCount++;
       sessionQuestionsAnswered++;
+      answerHistory.push({ isCorrect }); // track for prevQuestion undo
       showResult(question, isCorrect);
 
       // Fire-and-forget: save answer in background
@@ -788,17 +786,6 @@
     }
 
     function showResult(question, isCorrect) {
-      // Save to history (only when answering a new question, not when navigating back)
-      if (displayResultIndex === answerHistory.length - 1 || displayResultIndex === -1) {
-        answerHistory.push({ question, isCorrect });
-        displayResultIndex = answerHistory.length - 1;
-      }
-      renderResult(displayResultIndex);
-    }
-
-    function renderResult(index) {
-      const { question, isCorrect } = answerHistory[index];
-
       const statusEl = document.getElementById('result-status');
       statusEl.className = `result-status ${isCorrect ? 'correct' : 'incorrect'}`;
       statusEl.textContent = isCorrect ? '正解' : '不正解';
@@ -810,41 +797,28 @@
         <p style="margin-top: 1rem; font-size: 0.9rem; color: var(--text-light);">
           <strong>正解: ${question.correctAnswers.join(', ')}</strong>
         </p>
-        <p style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-light);">
-          ${index + 1} 問目 / ${answerHistory.length} 問回答済み
-        </p>
       `;
 
-      // Show/hide navigation buttons based on position
-      const prevBtn = document.getElementById('prev-question-btn');
-      const nextBtn = document.getElementById('next-question-btn');
-      prevBtn.style.display = index > 0 ? 'block' : 'none';
-
-      // "次の問題" label changes if we're reviewing history vs at the latest
-      if (index < answerHistory.length - 1) {
-        nextBtn.textContent = '次の問題の解説へ';
-      } else {
-        nextBtn.textContent = currentQuestionIndex + 1 < filteredQuestions.length ? '次の問題' : '結果を見る';
-      }
+      // Show "前の問題に戻る" only when there is a previous question
+      document.getElementById('prev-question-btn').style.display =
+        currentQuestionIndex > 0 ? 'block' : 'none';
 
       showScreen('result-screen');
     }
 
     function prevQuestion() {
-      if (displayResultIndex > 0) {
-        displayResultIndex--;
-        renderResult(displayResultIndex);
+      // Undo the counters for the question we are leaving
+      if (answerHistory.length > 0) {
+        const last = answerHistory.pop();
+        sessionQuestionsAnswered--;
+        if (last.isCorrect) sessionCorrectCount--;
       }
+      // Go back one question
+      currentQuestionIndex--;
+      showQuestion();
     }
 
     function nextQuestion() {
-      // If viewing a historical result, move forward in history
-      if (displayResultIndex < answerHistory.length - 1) {
-        displayResultIndex++;
-        renderResult(displayResultIndex);
-        return;
-      }
-      // Otherwise advance to the next unanswered question
       currentQuestionIndex++;
       if (currentQuestionIndex < filteredQuestions.length) {
         showQuestion();
