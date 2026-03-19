@@ -457,7 +457,7 @@
         <label for="password">パスワード</label>
         <input type="password" id="password" placeholder="パスワード">
       </div>
-      <button class="btn btn-primary" onclick="login()">ログイン</button>
+      <button class="btn btn-primary" id="login-btn" onclick="login()">ログイン</button>
       <div style="text-align: center; margin-top: 1.5rem;">
         <a href="admin.html" style="color: var(--primary); font-size: 0.9rem;">教員の方はこちら（管理ページ）</a>
       </div>
@@ -494,7 +494,8 @@
       <div class="result-card">
         <div id="result-status"></div>
         <div id="explanation-container" class="explanation"></div>
-        <button class="btn btn-primary" onclick="nextQuestion()">次の問題</button>
+        <button class="btn btn-primary" id="next-question-btn" onclick="nextQuestion()">次の問題</button>
+        <button class="btn btn-secondary" id="prev-question-btn" onclick="prevQuestion()" style="display:none;">前の問題に戻る</button>
       </div>
     </div>
 
@@ -559,6 +560,8 @@
     let filteredQuestions = [];
     let subjectChartInstance = null;
     let progressChartInstance = null;
+    let answerHistory = [];      // [{question, isCorrect}]
+    let displayResultIndex = -1; // index into answerHistory currently shown
 
     // Initialize
     function init() {
@@ -568,6 +571,15 @@
         showNavMenu();
         showSubjectSelection();
       }
+      // Allow Enter key on login form
+      ['student-id', 'password'].forEach(id => {
+        document.getElementById(id).addEventListener('keydown', e => {
+          if (e.key === 'Enter') login();
+        });
+      });
+      // Pre-fill last used student ID
+      const lastId = localStorage.getItem('lastStudentId');
+      if (lastId) document.getElementById('student-id').value = lastId;
     }
 
     function showNavMenu() {
@@ -580,7 +592,7 @@
 
     // Login
     function login() {
-      const studentId = document.getElementById('student-id').value;
+      const studentId = document.getElementById('student-id').value.trim();
       const password = document.getElementById('password').value;
 
       if (!studentId || !password) {
@@ -588,19 +600,30 @@
         return;
       }
 
+      // Show loading state immediately
+      const btn = document.getElementById('login-btn');
+      btn.textContent = 'ログイン中...';
+      btn.disabled = true;
+      document.getElementById('login-error').classList.remove('show');
+
       fetch(`${GAS_URL}?action=login&student_id=${studentId}&password=${password}`)
         .then(r => r.json())
         .then(res => {
           if (res.success) {
             currentUser = res.data;
             localStorage.setItem('user', JSON.stringify(currentUser));
+            localStorage.setItem('lastStudentId', studentId);
             showNavMenu();
             showSubjectSelection();
           } else {
+            btn.textContent = 'ログイン';
+            btn.disabled = false;
             showLoginError('ログインに失敗しました。認証情報を確認してください。');
           }
         })
         .catch(err => {
+          btn.textContent = 'ログイン';
+          btn.disabled = false;
           showLoginError('通信エラーが発生しました: ' + err.message);
         });
     }
@@ -642,6 +665,8 @@
       currentQuestionIndex = 0;
       sessionCorrectCount = 0;
       sessionQuestionsAnswered = 0;
+      answerHistory = [];
+      displayResultIndex = -1;
       startSession();
     }
 
@@ -651,6 +676,8 @@
       currentQuestionIndex = 0;
       sessionCorrectCount = 0;
       sessionQuestionsAnswered = 0;
+      answerHistory = [];
+      displayResultIndex = -1;
       startSession();
     }
 
@@ -759,6 +786,17 @@
     }
 
     function showResult(question, isCorrect) {
+      // Save to history (only when answering a new question, not when navigating back)
+      if (displayResultIndex === answerHistory.length - 1 || displayResultIndex === -1) {
+        answerHistory.push({ question, isCorrect });
+        displayResultIndex = answerHistory.length - 1;
+      }
+      renderResult(displayResultIndex);
+    }
+
+    function renderResult(index) {
+      const { question, isCorrect } = answerHistory[index];
+
       const statusEl = document.getElementById('result-status');
       statusEl.className = `result-status ${isCorrect ? 'correct' : 'incorrect'}`;
       statusEl.textContent = isCorrect ? '正解' : '不正解';
@@ -770,12 +808,41 @@
         <p style="margin-top: 1rem; font-size: 0.9rem; color: var(--text-light);">
           <strong>正解: ${question.correctAnswers.join(', ')}</strong>
         </p>
+        <p style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-light);">
+          ${index + 1} 問目 / ${answerHistory.length} 問回答済み
+        </p>
       `;
+
+      // Show/hide navigation buttons based on position
+      const prevBtn = document.getElementById('prev-question-btn');
+      const nextBtn = document.getElementById('next-question-btn');
+      prevBtn.style.display = index > 0 ? 'block' : 'none';
+
+      // "次の問題" label changes if we're reviewing history vs at the latest
+      if (index < answerHistory.length - 1) {
+        nextBtn.textContent = '次の問題の解説へ';
+      } else {
+        nextBtn.textContent = currentQuestionIndex + 1 < filteredQuestions.length ? '次の問題' : '結果を見る';
+      }
 
       showScreen('result-screen');
     }
 
+    function prevQuestion() {
+      if (displayResultIndex > 0) {
+        displayResultIndex--;
+        renderResult(displayResultIndex);
+      }
+    }
+
     function nextQuestion() {
+      // If viewing a historical result, move forward in history
+      if (displayResultIndex < answerHistory.length - 1) {
+        displayResultIndex++;
+        renderResult(displayResultIndex);
+        return;
+      }
+      // Otherwise advance to the next unanswered question
       currentQuestionIndex++;
       if (currentQuestionIndex < filteredQuestions.length) {
         showQuestion();
