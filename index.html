@@ -485,17 +485,16 @@
       <div class="question-card">
         <h4 id="question-text"></h4>
         <div class="options" id="options-container"></div>
-        <button class="btn btn-primary" onclick="submitAnswer()">回答する</button>
-      </div>
-    </div>
-
-    <!-- Result Screen -->
-    <div id="result-screen" class="screen">
-      <div class="result-card">
-        <div id="result-status"></div>
-        <div id="explanation-container" class="explanation"></div>
-        <button class="btn btn-primary" id="next-question-btn" onclick="nextQuestion()">次の問題</button>
-        <button class="btn btn-secondary" id="prev-question-btn" onclick="prevQuestion()" style="display:none;">前の問題に戻る</button>
+        <button class="btn btn-primary" id="submit-btn" onclick="submitAnswer()">回答する</button>
+        <!-- Inline result & explanation (shown after answering) -->
+        <div id="inline-result" style="display:none; margin-top:1.5rem;">
+          <div id="result-status"></div>
+          <div id="explanation-container" class="explanation"></div>
+          <div style="display:flex; gap:1rem; margin-top:1rem; flex-wrap:wrap;">
+            <button class="btn btn-primary" id="next-question-btn" onclick="nextQuestion()">次の問題</button>
+            <button class="btn btn-secondary" id="prev-question-btn" onclick="prevQuestion()" style="display:none;">前の問題に戻る</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -680,6 +679,10 @@
       var question = filteredQuestions[currentQuestionIndex];
       selectedAnswers = [];
 
+      // Reset inline result area
+      document.getElementById('inline-result').style.display = 'none';
+      document.getElementById('submit-btn').style.display = 'block';
+
       document.getElementById('subject-name').textContent = currentSubject;
       document.getElementById('question-progress').textContent =
         (currentQuestionIndex + 1) + ' / ' + filteredQuestions.length;
@@ -763,9 +766,19 @@
 
       // "前の問題に戻る" is visible from 2nd question onward
       document.getElementById('prev-question-btn').style.display =
-        currentQuestionIndex > 0 ? 'block' : 'none';
+        currentQuestionIndex > 0 ? 'inline-block' : 'none';
 
-      showScreen('result-screen');
+      // Hide submit button, show inline result below question
+      document.getElementById('submit-btn').style.display = 'none';
+      document.getElementById('inline-result').style.display = 'block';
+
+      // Disable option clicks after answering
+      document.querySelectorAll('.option').forEach(function(o){
+        o.style.pointerEvents = 'none';
+      });
+
+      // Scroll result into view
+      document.getElementById('inline-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
     function prevQuestion() {
