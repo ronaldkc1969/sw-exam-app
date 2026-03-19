@@ -527,19 +527,10 @@
         </div>
       </div>
       <div style="margin-top: 2rem;">
-        <h3 style="color: var(--primary); margin-bottom: 1.5rem;">回答履歴</h3>
-        <table class="stats-table">
-          <thead>
-            <tr>
-              <th>問題ID</th>
-              <th>科目</th>
-              <th>結果</th>
-              <th>日時</th>
-            </tr>
-          </thead>
-          <tbody id="history-tbody">
-          </tbody>
-        </table>
+        <div class="chart-container">
+          <h3 style="margin-bottom: 1.5rem;">日毎の学習合計時間（分）</h3>
+          <canvas id="dailyTimeChart"></canvas>
+        </div>
       </div>
     </div>
   </div>
@@ -559,6 +550,7 @@
     var answerHistory = [];
     var subjectChartInstance = null;
     var progressChartInstance = null;
+    var dailyTimeChartInstance = null;
 
     function init() {
       var stored = localStorage.getItem('user');
@@ -822,13 +814,14 @@
       fetch(GAS_URL + '?action=getProgress&student_id=' + currentUser.student_id)
         .then(function(r){ return r.json(); })
         .then(function(res){
-          displayDashboard(res.data.answers);
+          displayDashboard(res.data.answers, res.data.sessions || []);
           showScreen('dashboard-screen');
         })
         .catch(function(err){ alert('ダッシュボード読み込みエラー: ' + err.message); });
     }
 
-    function displayDashboard(answers) {
+    function displayDashboard(answers, sessions) {
+      // --- Chart 1: Subject accuracy ---
       var subjectStats = {};
       answers.forEach(function(a) {
         if (!subjectStats[a.subject]) subjectStats[a.subject] = { answered: 0, correct: 0 };
@@ -836,18 +829,19 @@
         if (a.is_correct) subjectStats[a.subject].correct++;
       });
       var labels = Object.keys(subjectStats);
-      var data = labels.map(function(s){
+      var accuracyData = labels.map(function(s){
         return Math.round((subjectStats[s].correct / subjectStats[s].answered) * 100);
       });
 
       if (subjectChartInstance) { subjectChartInstance.destroy(); subjectChartInstance = null; }
       subjectChartInstance = new Chart(document.getElementById('subjectChart').getContext('2d'), {
         type: 'bar',
-        data: { labels: labels, datasets: [{ label: '正解率 (%)', data: data,
+        data: { labels: labels, datasets: [{ label: '正解率 (%)', data: accuracyData,
           backgroundColor: 'rgba(44,95,138,0.8)', borderColor: 'rgba(44,95,138,1)', borderWidth: 1 }] },
         options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 } } }
       });
 
+      // --- Chart 2: Overall progress (doughnut) ---
       if (progressChartInstance) { progressChartInstance.destroy(); progressChartInstance = null; }
       var correctCount = answers.filter(function(a){ return a.is_correct; }).length;
       progressChartInstance = new Chart(document.getElementById('progressChart').getContext('2d'), {
@@ -857,15 +851,29 @@
         options: { responsive: true }
       });
 
-      var tbody = document.getElementById('history-tbody');
-      tbody.innerHTML = '';
-      answers.slice(-20).reverse().forEach(function(a) {
-        var tr = document.createElement('tr');
-        tr.innerHTML = '<td>Q' + a.question_id + '</td><td>' + a.subject + '</td>' +
-          '<td><span style="color:' + (a.is_correct ? 'var(--success)' : 'var(--error)') + '">' +
-          (a.is_correct ? '正解' : '不正解') + '</span></td>' +
-          '<td>' + new Date(a.timestamp).toLocaleString('ja-JP') + '</td>';
-        tbody.appendChild(tr);
+      // --- Chart 3: Daily learning time (minutes) from sessions ---
+      var dailyMinutes = {};
+      sessions.forEach(function(s) {
+        if (!s.start_time || !s.end_time) return;
+        var start = new Date(s.start_time);
+        var end = new Date(s.end_time);
+        var mins = Math.round((end - start) / 60000);
+        if (mins <= 0) return;
+        var dateKey = start.toLocaleDateString('ja-JP');
+        dailyMinutes[dateKey] = (dailyMinutes[dateKey] || 0) + mins;
+      });
+      var dailyLabels = Object.keys(dailyMinutes).sort();
+      var dailyData = dailyLabels.map(function(d){ return dailyMinutes[d]; });
+
+      if (dailyTimeChartInstance) { dailyTimeChartInstance.destroy(); dailyTimeChartInstance = null; }
+      dailyTimeChartInstance = new Chart(document.getElementById('dailyTimeChart').getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: dailyLabels.length ? dailyLabels : ['データなし'],
+          datasets: [{ label: '学習時間（分）', data: dailyData.length ? dailyData : [0],
+            backgroundColor: 'rgba(232,145,44,0.8)', borderColor: 'rgba(232,145,44,1)', borderWidth: 1 }]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
       });
     }
 
