@@ -425,12 +425,12 @@
       students.forEach(function(student) {
         var tr = document.createElement('tr');
         tr.innerHTML =
-          '<td><span class=\"clickable\" onclick=\"showStudentDetail(\\'' + student.student_id + '\\')\"><\/span>' + student.student_id + '<\/span><\/td>' +
-          '<td><span class=\"clickable\" onclick=\"showStudentDetail(\\'' + student.student_id + '\\')\"><\/span>' + (student.name || student.student_id) + '<\/span><\/td>' +
-          '<td>' + student.answered + '<\/td>' +
-          '<td>' + student.correct + '<\/td>' +
-          '<td>' + student.accuracy + '%<\/td>' +
-          '<td>-<\/td><td>-<\/td>';
+          '<td><span class="clickable" onclick="showStudentDetail(\'' + student.student_id + '\')">' + student.student_id + '</span></td>' +
+          '<td><span class="clickable" onclick="showStudentDetail(\'' + student.student_id + '\')">' + (student.name || student.student_id) + '</span></td>' +
+          '<td>' + student.answered + '</td>' +
+          '<td>' + student.correct + '</td>' +
+          '<td>' + student.accuracy + '%</td>' +
+          '<td>-</td><td>-</td>';
         tbody.appendChild(tr);
       });
     }
