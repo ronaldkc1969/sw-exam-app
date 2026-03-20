@@ -317,40 +317,50 @@
     </div>
   </div>
 
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="js/questions.js"></script>
   <script>
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbxFzlCOWQkKAn3yWfYsVB5YV8B-Ae59rg5msmkN-PPCunE8tayHwWiVuz5DME6BEHU/exec';
+    // ★ index.html と同じFirebase設定を貼り付けてください ★
+    var firebaseConfig = {
+      apiKey:            "AIzaSyCzm2IKqUeRzNJBCNAziJ5vMIkzkd15k_w",
+      authDomain:        "sw-exam-app.firebaseapp.com",
+      projectId:         "sw-exam-app",
+      storageBucket:     "sw-exam-app.firebasestorage.app",
+      messagingSenderId: "639895090898",
+      appId:             "1:639895090898:web:9333560f396096b4cc1f0b"
+    };
+    firebase.initializeApp(firebaseConfig);
+    var db = firebase.firestore();
 
-    let currentTeacher = null;
-    let currentStudentId = null;
-    let subjectDetailChartInstance = null;
-    let dailyTimeChartInstance = null;
-    let subjectCountChartInstance = null;
+    var currentTeacher = null;
+    var currentStudentId = null;
+    var allStudentsCache = [];
+    var subjectDetailChartInstance = null;
+    var dailyTimeChartInstance = null;
+    var subjectCountChartInstance = null;
 
-    // Initialize
     function init() {
-      const stored = localStorage.getItem('teacher');
+      var stored = localStorage.getItem('teacher');
       if (stored) {
         currentTeacher = JSON.parse(stored);
+        document.getElementById('logout-btn').style.display = 'block';
         showDashboard();
       }
     }
 
-    // Login
     function teacherLogin() {
-      const teacherId = document.getElementById('teacher-id').value;
-      const password = document.getElementById('teacher-password').value;
-
+      var teacherId = document.getElementById('teacher-id').value.trim();
+      var password  = document.getElementById('teacher-password').value;
       if (!teacherId || !password) {
         showLoginError('教員IDとパスワードを入力してください');
         return;
       }
 
-      fetch(`${GAS_URL}?action=login&student_id=${teacherId}&password=${password}`)
-        .then(r => r.json())
-        .then(res => {
-          if (res.success && res.data.role === 'teacher') {
-            currentTeacher = res.data;
+      db.collection('users').doc(teacherId).get()
+        .then(function(doc) {
+          if (doc.exists && doc.data().password === password && doc.data().role === 'teacher') {
+            currentTeacher = { student_id: teacherId, name: doc.data().name || teacherId, role: 'teacher' };
             localStorage.setItem('teacher', JSON.stringify(currentTeacher));
             document.getElementById('logout-btn').style.display = 'block';
             showDashboard();
@@ -358,13 +368,13 @@
             showLoginError('教員認証に失敗しました。認証情報を確認してください。');
           }
         })
-        .catch(err => {
+        .catch(function(err) {
           showLoginError('通信エラーが発生しました: ' + err.message);
         });
     }
 
     function showLoginError(msg) {
-      const el = document.getElementById('login-error');
+      var el = document.getElementById('login-error');
       el.textContent = msg;
       el.classList.add('show');
     }
@@ -379,99 +389,111 @@
       document.getElementById('login-error').classList.remove('show');
     }
 
-    // Dashboard
     function showDashboard() {
-      fetch(`${GAS_URL}?action=getAllStudents&admin_id=${currentTeacher.student_id}`)
-        .then(r => r.json())
-        .then(res => {
-          if (!res.success) {
-            alert('認可エラー: ' + res.data);
-            logout();
-            return;
-          }
-          displayDashboard(res.data.students);
-          showScreen('dashboard-screen');
-        })
-        .catch(err => alert('ダッシュボード読み込みエラー: ' + err.message));
+      Promise.all([
+        db.collection('users').where('role', '==', 'student').get(),
+        db.collection('answers').get()
+      ])
+      .then(function(results) {
+        var students   = results[0].docs.map(function(d){ return Object.assign({ student_id: d.id }, d.data()); });
+        var allAnswers = results[1].docs.map(function(d){ return d.data(); });
+
+        // 学生ごとの解答集計
+        var statsMap = {};
+        allAnswers.forEach(function(a) {
+          if (!statsMap[a.student_id]) statsMap[a.student_id] = { answered: 0, correct: 0 };
+          statsMap[a.student_id].answered++;
+          if (a.is_correct) statsMap[a.student_id].correct++;
+        });
+        students.forEach(function(s) {
+          var st = statsMap[s.student_id] || { answered: 0, correct: 0 };
+          s.answered = st.answered;
+          s.correct  = st.correct;
+          s.accuracy = st.answered > 0 ? Math.round((st.correct / st.answered) * 100) : 0;
+        });
+
+        allStudentsCache = students;
+        displayDashboard(students);
+        showScreen('dashboard-screen');
+      })
+      .catch(function(err){ alert('ダッシュボード読み込みエラー: ' + err.message); });
     }
 
     function displayDashboard(students) {
-      const tbody = document.getElementById('students-tbody');
+      var tbody = document.getElementById('students-tbody');
       tbody.innerHTML = '';
-
-      students.forEach(student => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td><span class="clickable" onclick="showStudentDetail('${student.student_id}')">${student.student_id}</span></td>
-          <td><span class="clickable" onclick="showStudentDetail('${student.student_id}')">${student.name}</span></td>
-          <td>${student.answered}</td>
-          <td>${student.correct}</td>
-          <td>${student.accuracy}%</td>
-          <td>-</td>
-          <td>-</td>
-        `;
+      students.forEach(function(student) {
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><span class="clickable" onclick="showStudentDetail(\'' + student.student_id + '\')">' + student.student_id + '</span></td>' +
+          '<td><span class="clickable" onclick="showStudentDetail(\'' + student.student_id + '\')">' + (student.name || student.student_id) + '</span></td>' +
+          '<td>' + student.answered + '</td>' +
+          '<td>' + student.correct + '</td>' +
+          '<td>' + student.accuracy + '%</td>' +
+          '<td>-</td><td>-</td>';
         tbody.appendChild(tr);
       });
     }
 
-    // Student Detail
     function showStudentDetail(studentId) {
       currentStudentId = studentId;
-      fetch(`${GAS_URL}?action=getStudentDetail&admin_id=${currentTeacher.student_id}&target_student_id=${studentId}`)
-        .then(r => r.json())
-        .then(res => {
-          if (!res.success) {
-            alert('認可エラー');
-            return;
-          }
-          displayStudentDetail(studentId, res.data);
-          showScreen('detail-screen');
-        })
-        .catch(err => alert('学生詳細読み込みエラー: ' + err.message));
+      Promise.all([
+        db.collection('answers').where('student_id', '==', studentId).get(),
+        db.collection('sessions').where('student_id', '==', studentId).get(),
+        db.collection('users').doc(studentId).get()
+      ])
+      .then(function(results) {
+        var answers  = results[0].docs.map(function(d){ return d.data(); });
+        var sessions = results[1].docs.map(function(d){ return d.data(); });
+        var userData = results[2].exists ? results[2].data() : {};
+
+        // 科目別集計
+        var subjectStats = {};
+        answers.forEach(function(a) {
+          if (!subjectStats[a.subject]) subjectStats[a.subject] = { answered: 0, correct: 0 };
+          subjectStats[a.subject].answered++;
+          if (a.is_correct) subjectStats[a.subject].correct++;
+        });
+
+        document.getElementById('student-detail-id').textContent   = studentId;
+        document.getElementById('student-detail-name').textContent = userData.name || studentId;
+
+        displayStudentDetail(studentId, { subjectStats: subjectStats, sessions: sessions });
+        showScreen('detail-screen');
+      })
+      .catch(function(err){ alert('学生詳細読み込みエラー: ' + err.message); });
     }
 
     function displayStudentDetail(studentId, data) {
-      document.getElementById('student-detail-id').textContent = studentId;
-      document.getElementById('student-detail-name').textContent = getStudentName(studentId);
-
-      // --- Chart 1: Subject accuracy ---
-      const subjectStats = data.subjectStats;
-      const subjectLabels = Object.keys(subjectStats);
-      const accuracyData = subjectLabels.map(function(subject) {
-        const stat = subjectStats[subject];
-        return Math.round((stat.correct / stat.answered) * 100);
+      // グラフ1: 科目別正解率
+      var subjectStats  = data.subjectStats;
+      var subjectLabels = Object.keys(subjectStats);
+      var accuracyData  = subjectLabels.map(function(s) {
+        return Math.round((subjectStats[s].correct / subjectStats[s].answered) * 100);
       });
 
       if (subjectDetailChartInstance) { subjectDetailChartInstance.destroy(); subjectDetailChartInstance = null; }
       subjectDetailChartInstance = new Chart(
         document.getElementById('subjectDetailChart').getContext('2d'), {
         type: 'bar',
-        data: {
-          labels: subjectLabels,
-          datasets: [{
-            label: '正解率 (%)',
-            data: accuracyData,
-            backgroundColor: 'rgba(44, 95, 138, 0.8)',
-            borderColor: 'rgba(44, 95, 138, 1)',
-            borderWidth: 1
-          }]
-        },
+        data: { labels: subjectLabels, datasets: [{ label: '正解率 (%)', data: accuracyData,
+          backgroundColor: 'rgba(44,95,138,0.8)', borderColor: 'rgba(44,95,138,1)', borderWidth: 1 }] },
         options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 } } }
       });
 
-      // --- Chart 2: Daily total learning time (minutes) from sessions ---
-      const dailyMinutes = {};
-      (data.sessions || []).forEach(function(session) {
-        if (!session.start_time || !session.end_time) return;
-        const start = new Date(session.start_time);
-        const end = new Date(session.end_time);
-        const mins = Math.round((end - start) / 60000);
+      // グラフ2: 日毎の学習合計時間
+      var dailyMinutes = {};
+      (data.sessions || []).forEach(function(s) {
+        if (!s.start_time || !s.end_time) return;
+        var start = s.start_time.toDate ? s.start_time.toDate() : new Date(s.start_time);
+        var end   = s.end_time.toDate   ? s.end_time.toDate()   : new Date(s.end_time);
+        var mins  = Math.round((end - start) / 60000);
         if (mins <= 0) return;
-        const dateKey = start.toLocaleDateString('ja-JP');
+        var dateKey = start.toLocaleDateString('ja-JP');
         dailyMinutes[dateKey] = (dailyMinutes[dateKey] || 0) + mins;
       });
-      const dailyLabels = Object.keys(dailyMinutes).sort();
-      const dailyData = dailyLabels.map(function(d) { return dailyMinutes[d]; });
+      var dailyLabels = Object.keys(dailyMinutes).sort();
+      var dailyData   = dailyLabels.map(function(d){ return dailyMinutes[d]; });
 
       if (dailyTimeChartInstance) { dailyTimeChartInstance.destroy(); dailyTimeChartInstance = null; }
       dailyTimeChartInstance = new Chart(
@@ -479,52 +501,32 @@
         type: 'bar',
         data: {
           labels: dailyLabels.length ? dailyLabels : ['データなし'],
-          datasets: [{
-            label: '学習時間（分）',
-            data: dailyData.length ? dailyData : [0],
-            backgroundColor: 'rgba(232, 145, 44, 0.8)',
-            borderColor: 'rgba(232, 145, 44, 1)',
-            borderWidth: 1
-          }]
+          datasets: [{ label: '学習時間（分）', data: dailyData.length ? dailyData : [0],
+            backgroundColor: 'rgba(232,145,44,0.8)', borderColor: 'rgba(232,145,44,1)', borderWidth: 1 }]
         },
         options: { responsive: true, scales: { y: { beginAtZero: true } } }
       });
 
-      // --- Chart 3: Subject answer count ---
-      const subjectCountLabels = Object.keys(subjectStats);
-      const subjectCountData = subjectCountLabels.map(function(s) { return subjectStats[s].answered; });
+      // グラフ3: 分野別解答数
+      var subjectCountLabels = Object.keys(subjectStats);
+      var subjectCountData   = subjectCountLabels.map(function(s){ return subjectStats[s].answered; });
 
       if (subjectCountChartInstance) { subjectCountChartInstance.destroy(); subjectCountChartInstance = null; }
       subjectCountChartInstance = new Chart(
         document.getElementById('subjectCountChart').getContext('2d'), {
         type: 'bar',
-        data: {
-          labels: subjectCountLabels,
-          datasets: [{
-            label: '解答数',
-            data: subjectCountData,
-            backgroundColor: 'rgba(39, 174, 96, 0.8)',
-            borderColor: 'rgba(39, 174, 96, 1)',
-            borderWidth: 1
-          }]
-        },
+        data: { labels: subjectCountLabels, datasets: [{ label: '解答数', data: subjectCountData,
+          backgroundColor: 'rgba(39,174,96,0.8)', borderColor: 'rgba(39,174,96,1)', borderWidth: 1 }] },
         options: { responsive: true, scales: { y: { beginAtZero: true } } }
       });
-    }
-
-    function getStudentName(studentId) {
-      // In production, fetch from database
-      // For now, return ID
-      return studentId;
     }
 
     function backToDashboard() {
       showDashboard();
     }
 
-    // Screen Management
     function showScreen(screenId) {
-      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
       document.getElementById(screenId).classList.add('active');
     }
 
