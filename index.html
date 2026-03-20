@@ -906,7 +906,14 @@
         if (a.is_correct) subjectStats[a.subject].correct++;
       });
       var labels = Object.keys(subjectStats);
-      var verticalLabels = labels.map(function(s){ return s.split(''); });
+      var verticalLabels = labels.map(function(s) {
+        return s.split('').map(function(c) {
+          if (c === 'ー') return '︱';
+          if (c === '（') return '︵';
+          if (c === '）') return '︶';
+          return c;
+        });
+      });
       var accuracyData = labels.map(function(s){
         return Math.round((subjectStats[s].correct / subjectStats[s].answered) * 100);
       });
