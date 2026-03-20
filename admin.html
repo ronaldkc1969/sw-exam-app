@@ -468,7 +468,14 @@
       // グラフ1: 科目別正解率
       var subjectStats  = data.subjectStats;
       var subjectLabels = Object.keys(subjectStats);
-      var verticalLabels = subjectLabels.map(function(s){ return s.split(''); });
+      var verticalLabels = subjectLabels.map(function(s) {
+        return s.split('').map(function(c) {
+          if (c === 'ー') return '︱';
+          if (c === '（') return '︵';
+          if (c === '）') return '︶';
+          return c;
+        });
+      });
       var accuracyData  = subjectLabels.map(function(s) {
         return Math.round((subjectStats[s].correct / subjectStats[s].answered) * 100);
       });
