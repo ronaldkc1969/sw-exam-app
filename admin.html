@@ -272,7 +272,7 @@
 
     <!-- Dashboard Screen -->
     <div id="dashboard-screen" class="screen">
-      <h2 style="color: var(--primary); margin-bottom: 2rem;">学生管理ダッシュボード</h2>
+      <h2 style="color: var(--primary); margin-bottom: 2rem;">マイページ</h2>
       <div style="margin-bottom: 2rem;">
         <table class="stats-table">
           <thead>
@@ -294,7 +294,7 @@
 
     <!-- Student Detail Screen -->
     <div id="detail-screen" class="screen">
-      <button class="btn btn-back" onclick="backToDashboard()">← ダッシュボードに戻る</button>
+      <button class="btn btn-back" onclick="backToDashboard()">← マイページに戻る</button>
       <div class="detail-header">
         <h2 id="student-detail-name"></h2>
         <p style="color: var(--text-light);">学籍番号: <strong id="student-detail-id"></strong></p>
@@ -306,8 +306,8 @@
       </div>
 
       <div class="chart-container">
-        <h3>日毎の学習合計時間（分）</h3>
-        <canvas id="dailyTimeChart"></canvas>
+        <h3>週ごとの解答数</h3>
+        <canvas id="weeklyAnswerChart"></canvas>
       </div>
 
       <div class="chart-container">
@@ -337,7 +337,7 @@
     var currentStudentId = null;
     var allStudentsCache = [];
     var subjectDetailChartInstance = null;
-    var dailyTimeChartInstance = null;
+    var weeklyAnswerChartInstance = null;
     var subjectCountChartInstance = null;
 
     function init() {
@@ -458,7 +458,7 @@
         document.getElementById('student-detail-id').textContent   = studentId;
         document.getElementById('student-detail-name').textContent = userData.name || studentId;
 
-        displayStudentDetail(studentId, { subjectStats: subjectStats, sessions: sessions });
+        displayStudentDetail(studentId, { subjectStats: subjectStats, sessions: sessions, answers: answers });
         showScreen('detail-screen');
       })
       .catch(function(err){ alert('学生詳細読み込みエラー: ' + err.message); });
@@ -481,30 +481,30 @@
         options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 } } }
       });
 
-      // グラフ2: 日毎の学習合計時間
-      var dailyMinutes = {};
-      (data.sessions || []).forEach(function(s) {
-        if (!s.start_time || !s.end_time) return;
-        var start = s.start_time.toDate ? s.start_time.toDate() : new Date(s.start_time);
-        var end   = s.end_time.toDate   ? s.end_time.toDate()   : new Date(s.end_time);
-        var mins  = Math.round((end - start) / 60000);
-        if (mins <= 0) return;
-        var dateKey = start.toLocaleDateString('ja-JP');
-        dailyMinutes[dateKey] = (dailyMinutes[dateKey] || 0) + mins;
+      // グラフ2: 週ごとの解答数
+      var weekMap = {};
+      (data.answers || []).forEach(function(a) {
+        if (!a.timestamp) return;
+        var ts = a.timestamp.toDate ? a.timestamp.toDate() : new Date(a.timestamp);
+        var day = ts.getDay();
+        var diff = ts.getDate() - day + (day === 0 ? -6 : 1);
+        var monday = new Date(ts.getFullYear(), ts.getMonth(), diff);
+        var weekKey = monday.toLocaleDateString('ja-JP');
+        weekMap[weekKey] = (weekMap[weekKey] || 0) + 1;
       });
-      var dailyLabels = Object.keys(dailyMinutes).sort();
-      var dailyData   = dailyLabels.map(function(d){ return dailyMinutes[d]; });
+      var weekLabels = Object.keys(weekMap).sort();
+      var weekData   = weekLabels.map(function(w){ return weekMap[w]; });
 
-      if (dailyTimeChartInstance) { dailyTimeChartInstance.destroy(); dailyTimeChartInstance = null; }
-      dailyTimeChartInstance = new Chart(
-        document.getElementById('dailyTimeChart').getContext('2d'), {
+      if (weeklyAnswerChartInstance) { weeklyAnswerChartInstance.destroy(); weeklyAnswerChartInstance = null; }
+      weeklyAnswerChartInstance = new Chart(
+        document.getElementById('weeklyAnswerChart').getContext('2d'), {
         type: 'bar',
         data: {
-          labels: dailyLabels.length ? dailyLabels : ['データなし'],
-          datasets: [{ label: '学習時間（分）', data: dailyData.length ? dailyData : [0],
+          labels: weekLabels.length ? weekLabels : ['データなし'],
+          datasets: [{ label: '解答数', data: weekData.length ? weekData : [0],
             backgroundColor: 'rgba(232,145,44,0.8)', borderColor: 'rgba(232,145,44,1)', borderWidth: 1 }]
         },
-        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
       });
 
       // グラフ3: 分野別解答数
