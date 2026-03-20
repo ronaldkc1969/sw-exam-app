@@ -906,6 +906,7 @@
         if (a.is_correct) subjectStats[a.subject].correct++;
       });
       var labels = Object.keys(subjectStats);
+      var verticalLabels = labels.map(function(s){ return s.split(''); });
       var accuracyData = labels.map(function(s){
         return Math.round((subjectStats[s].correct / subjectStats[s].answered) * 100);
       });
@@ -913,9 +914,9 @@
       if (subjectChartInstance) { subjectChartInstance.destroy(); subjectChartInstance = null; }
       subjectChartInstance = new Chart(document.getElementById('subjectChart').getContext('2d'), {
         type: 'bar',
-        data: { labels: labels, datasets: [{ label: '正解率 (%)', data: accuracyData,
+        data: { labels: verticalLabels, datasets: [{ label: '正解率 (%)', data: accuracyData,
           backgroundColor: 'rgba(44,95,138,0.8)', borderColor: 'rgba(44,95,138,1)', borderWidth: 1 }] },
-        options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 }, x: { ticks: { maxRotation: 90, minRotation: 90 } } } }
+        options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 } } }
       });
 
       // グラフ2: 学習進捗 (ドーナツ)
