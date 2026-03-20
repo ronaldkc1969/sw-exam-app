@@ -438,7 +438,7 @@
     <div class="container">
       <h1>社会福祉士試験</h1>
       <ul id="nav-menu" style="display: none;">
-        <li><button onclick="showDashboard()">ダッシュボード</button></li>
+        <li><button onclick="showDashboard()">マイページ</button></li>
         <li><button onclick="showSubjectSelection()">問題を解く</button></li>
         <li><button onclick="logout()">ログアウト</button></li>
       </ul>
@@ -516,7 +516,16 @@
 
     <!-- Dashboard Screen -->
     <div id="dashboard-screen" class="screen">
-      <h2 style="color: var(--primary); margin-bottom: 2rem;">学習ダッシュボード</h2>
+      <h2 style="color: var(--primary); margin-bottom: 2rem;">マイページ</h2>
+      <!-- 連続ログイン日数 -->
+      <div style="background: white; padding: 1.5rem 2rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 2rem; display: flex; align-items: center; gap: 1.5rem;">
+        <div style="text-align: center;">
+          <div id="consecutive-days-count" style="font-size: 2.5rem; font-weight: bold; color: var(--accent); line-height: 1;">0</div>
+          <div style="font-size: 0.85rem; color: var(--text-light); margin-top: 0.25rem;">連続ログイン日数</div>
+        </div>
+        <div style="width: 1px; background: var(--border); align-self: stretch;"></div>
+        <div style="color: var(--text-light); font-size: 0.95rem;">毎日ログインして学習を続けましょう！</div>
+      </div>
       <div class="dashboard-container">
         <div class="chart-container">
           <h3 style="margin-bottom: 1.5rem;">科目別正解率</h3>
@@ -529,8 +538,8 @@
       </div>
       <div style="margin-top: 2rem;">
         <div class="chart-container">
-          <h3 style="margin-bottom: 1.5rem;">日毎の学習合計時間（分）</h3>
-          <canvas id="dailyTimeChart"></canvas>
+          <h3 style="margin-bottom: 1.5rem;">週ごとの解答数</h3>
+          <canvas id="weeklyAnswerChart"></canvas>
         </div>
       </div>
     </div>
@@ -564,7 +573,7 @@
     var isWeakMode = false;
     var subjectChartInstance = null;
     var progressChartInstance = null;
-    var dailyTimeChartInstance = null;
+    var weeklyAnswerChartInstance = null;
 
     function init() {
       var stored = localStorage.getItem('user');
@@ -601,6 +610,7 @@
             currentUser = { student_id: studentId, name: d.name || studentId, role: d.role };
             localStorage.setItem('user', JSON.stringify(currentUser));
             localStorage.setItem('lastStudentId', studentId);
+            recordLoginDate();
             showNavMenu();
             showSubjectSelection();
           } else {
@@ -859,7 +869,35 @@
       .catch(function(err){ alert('ダッシュボード読み込みエラー: ' + err.message); });
     }
 
+    function recordLoginDate() {
+      var today = new Date().toLocaleDateString('ja-JP');
+      var dates = JSON.parse(localStorage.getItem('loginDates') || '[]');
+      if (dates.indexOf(today) === -1) {
+        dates.push(today);
+        if (dates.length > 365) dates = dates.slice(-365);
+        localStorage.setItem('loginDates', JSON.stringify(dates));
+      }
+    }
+
+    function calcConsecutiveDays() {
+      var dates = JSON.parse(localStorage.getItem('loginDates') || '[]');
+      var dateSet = {};
+      dates.forEach(function(d) { dateSet[d] = true; });
+      var count = 0;
+      var d = new Date();
+      while (true) {
+        var key = d.toLocaleDateString('ja-JP');
+        if (!dateSet[key]) break;
+        count++;
+        d.setDate(d.getDate() - 1);
+      }
+      return count;
+    }
+
     function displayDashboard(answers, sessions) {
+      // 連続ログイン日数
+      document.getElementById('consecutive-days-count').textContent = calcConsecutiveDays();
+
       // グラフ1: 科目別正解率
       var subjectStats = {};
       answers.forEach(function(a) {
@@ -890,29 +928,29 @@
         options: { responsive: true }
       });
 
-      // グラフ3: 日毎の学習合計時間
-      var dailyMinutes = {};
-      sessions.forEach(function(s) {
-        if (!s.start_time || !s.end_time) return;
-        var start = s.start_time.toDate ? s.start_time.toDate() : new Date(s.start_time);
-        var end   = s.end_time.toDate   ? s.end_time.toDate()   : new Date(s.end_time);
-        var mins  = Math.round((end - start) / 60000);
-        if (mins <= 0) return;
-        var dateKey = start.toLocaleDateString('ja-JP');
-        dailyMinutes[dateKey] = (dailyMinutes[dateKey] || 0) + mins;
+      // グラフ3: 週ごとの解答数
+      var weekMap = {};
+      answers.forEach(function(a) {
+        if (!a.timestamp) return;
+        var ts = a.timestamp.toDate ? a.timestamp.toDate() : new Date(a.timestamp);
+        var day = ts.getDay();
+        var diff = ts.getDate() - day + (day === 0 ? -6 : 1);
+        var monday = new Date(ts.getFullYear(), ts.getMonth(), diff);
+        var weekKey = monday.toLocaleDateString('ja-JP');
+        weekMap[weekKey] = (weekMap[weekKey] || 0) + 1;
       });
-      var dailyLabels = Object.keys(dailyMinutes).sort();
-      var dailyData   = dailyLabels.map(function(d){ return dailyMinutes[d]; });
+      var weekLabels = Object.keys(weekMap).sort();
+      var weekData   = weekLabels.map(function(w){ return weekMap[w]; });
 
-      if (dailyTimeChartInstance) { dailyTimeChartInstance.destroy(); dailyTimeChartInstance = null; }
-      dailyTimeChartInstance = new Chart(document.getElementById('dailyTimeChart').getContext('2d'), {
+      if (weeklyAnswerChartInstance) { weeklyAnswerChartInstance.destroy(); weeklyAnswerChartInstance = null; }
+      weeklyAnswerChartInstance = new Chart(document.getElementById('weeklyAnswerChart').getContext('2d'), {
         type: 'bar',
         data: {
-          labels: dailyLabels.length ? dailyLabels : ['データなし'],
-          datasets: [{ label: '学習時間（分）', data: dailyData.length ? dailyData : [0],
+          labels: weekLabels.length ? weekLabels : ['データなし'],
+          datasets: [{ label: '解答数', data: weekData.length ? weekData : [0],
             backgroundColor: 'rgba(232,145,44,0.8)', borderColor: 'rgba(232,145,44,1)', borderWidth: 1 }]
         },
-        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
       });
     }
 
