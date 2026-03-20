@@ -468,6 +468,7 @@
       // グラフ1: 科目別正解率
       var subjectStats  = data.subjectStats;
       var subjectLabels = Object.keys(subjectStats);
+      var verticalLabels = subjectLabels.map(function(s){ return s.split(''); });
       var accuracyData  = subjectLabels.map(function(s) {
         return Math.round((subjectStats[s].correct / subjectStats[s].answered) * 100);
       });
@@ -476,9 +477,9 @@
       subjectDetailChartInstance = new Chart(
         document.getElementById('subjectDetailChart').getContext('2d'), {
         type: 'bar',
-        data: { labels: subjectLabels, datasets: [{ label: '正解率 (%)', data: accuracyData,
+        data: { labels: verticalLabels, datasets: [{ label: '正解率 (%)', data: accuracyData,
           backgroundColor: 'rgba(44,95,138,0.8)', borderColor: 'rgba(44,95,138,1)', borderWidth: 1 }] },
-        options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 }, x: { ticks: { maxRotation: 90, minRotation: 90 } } } }
+        options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 } } }
       });
 
       // グラフ2: 週ごとの解答数
