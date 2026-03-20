@@ -535,19 +535,32 @@
     </div>
   </div>
 
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="js/questions.js"></script>
   <script>
-    var GAS_URL = 'https://script.google.com/macros/s/AKfycbxFzlCOWQkKAn3yWfYsVB5YV8B-Ae59rg5msmkN-PPCunE8tayHwWiVuz5DME6BEHU/exec';
+    // ★ Firebaseコンソールからコピーした設定をここに貼り付けてください ★
+    var firebaseConfig = {
+      apiKey:            "AIzaSyCzm2IKqUeRzNJBCNAziJ5vMIkzkd15k_w",
+      authDomain:        "sw-exam-app.firebaseapp.com",
+      projectId:         "sw-exam-app",
+      storageBucket:     "sw-exam-app.firebasestorage.app",
+      messagingSenderId: "639895090898",
+      appId:             "1:639895090898:web:9333560f396096b4cc1f0b"
+    };
+    firebase.initializeApp(firebaseConfig);
+    var db = firebase.firestore();
 
     var currentUser = null;
     var currentSubject = null;
     var currentQuestionIndex = 0;
-    var sessionId = null;
+    var sessionDocRef = null;
     var sessionQuestionsAnswered = 0;
     var sessionCorrectCount = 0;
     var selectedAnswers = [];
     var filteredQuestions = [];
     var answerHistory = [];
+    var isWeakMode = false;
     var subjectChartInstance = null;
     var progressChartInstance = null;
     var dailyTimeChartInstance = null;
@@ -559,10 +572,8 @@
         showNavMenu();
         showSubjectSelection();
       }
-      // Enter key for login
       document.getElementById('student-id').addEventListener('keydown', function(e){ if(e.key==='Enter') login(); });
       document.getElementById('password').addEventListener('keydown', function(e){ if(e.key==='Enter') login(); });
-      // Pre-fill last student ID
       var lastId = localStorage.getItem('lastStudentId');
       if (lastId) document.getElementById('student-id').value = lastId;
     }
@@ -572,7 +583,7 @@
 
     function login() {
       var studentId = document.getElementById('student-id').value.trim();
-      var password = document.getElementById('password').value;
+      var password  = document.getElementById('password').value;
       if (!studentId || !password) {
         showLoginError('学籍番号とパスワードを入力してください');
         return;
@@ -582,11 +593,11 @@
       btn.disabled = true;
       document.getElementById('login-error').classList.remove('show');
 
-      fetch(GAS_URL + '?action=login&student_id=' + studentId + '&password=' + password)
-        .then(function(r){ return r.json(); })
-        .then(function(res){
-          if (res.success) {
-            currentUser = res.data;
+      db.collection('users').doc(studentId).get()
+        .then(function(doc) {
+          if (doc.exists && doc.data().password === password && doc.data().role !== 'teacher') {
+            var d = doc.data();
+            currentUser = { student_id: studentId, name: d.name || studentId, role: d.role };
             localStorage.setItem('user', JSON.stringify(currentUser));
             localStorage.setItem('lastStudentId', studentId);
             showNavMenu();
@@ -597,7 +608,7 @@
             showLoginError('ログインに失敗しました。認証情報を確認してください。');
           }
         })
-        .catch(function(err){
+        .catch(function(err) {
           btn.textContent = 'ログイン';
           btn.disabled = false;
           showLoginError('通信エラーが発生しました: ' + err.message);
@@ -633,20 +644,34 @@
       showScreen('subject-selection');
     }
 
+    function shuffleArray(arr) {
+      var a = arr.slice();
+      for (var i = a.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+      }
+      return a;
+    }
+
     function startQuiz(subject) {
       currentSubject = subject;
-      filteredQuestions = QUESTIONS.filter(function(q){ return q.subject === subject; });
+      isWeakMode = false;
+      filteredQuestions = shuffleArray(QUESTIONS.filter(function(q){ return q.subject === subject; }));
       resetSession();
     }
 
     function startQuizAllSubjects() {
       currentSubject = 'すべての科目';
-      filteredQuestions = QUESTIONS;
+      isWeakMode = false;
+      filteredQuestions = shuffleArray(QUESTIONS.slice());
       resetSession();
     }
 
     function startQuizWeakSubjects() {
-      startQuizAllSubjects();
+      currentSubject = '苦手科目';
+      isWeakMode = true;
+      filteredQuestions = shuffleArray(QUESTIONS.slice());
+      resetSession();
     }
 
     function resetSession() {
@@ -654,12 +679,17 @@
       sessionCorrectCount = 0;
       sessionQuestionsAnswered = 0;
       answerHistory = [];
-      // Start session in background, show first question immediately
-      sessionId = 'local_' + Date.now();
-      fetch(GAS_URL + '?action=startSession&student_id=' + currentUser.student_id)
-        .then(function(r){ return r.json(); })
-        .then(function(res){ sessionId = res.data.session_id; })
-        .catch(function(){});
+      sessionDocRef = null;
+      // セッション開始をFirestoreに記録（バックグラウンド）
+      db.collection('sessions').add({
+        student_id: currentUser.student_id,
+        start_time: firebase.firestore.FieldValue.serverTimestamp(),
+        end_time: null,
+        questions_answered: 0,
+        correct_count: 0
+      }).then(function(ref) {
+        sessionDocRef = ref;
+      }).catch(function(){});
       showQuestion();
     }
 
@@ -671,15 +701,23 @@
       var question = filteredQuestions[currentQuestionIndex];
       selectedAnswers = [];
 
-      // Reset inline result area
       document.getElementById('inline-result').style.display = 'none';
       document.getElementById('submit-btn').style.display = 'block';
-
       document.getElementById('subject-name').textContent = currentSubject;
-      document.getElementById('question-progress').textContent =
-        (currentQuestionIndex + 1) + ' / ' + filteredQuestions.length;
-      document.getElementById('progress-fill').style.width =
-        (((currentQuestionIndex + 1) / filteredQuestions.length) * 100) + '%';
+
+      if (isWeakMode) {
+        var remaining = filteredQuestions.length - currentQuestionIndex;
+        document.getElementById('question-progress').textContent =
+          (currentQuestionIndex + 1) + '問目（残り ' + remaining + '問）';
+        document.getElementById('progress-fill').style.width =
+          Math.min(100, Math.round((sessionCorrectCount / (sessionCorrectCount + remaining)) * 100)) + '%';
+      } else {
+        document.getElementById('question-progress').textContent =
+          (currentQuestionIndex + 1) + ' / ' + filteredQuestions.length;
+        document.getElementById('progress-fill').style.width =
+          (((currentQuestionIndex + 1) / filteredQuestions.length) * 100) + '%';
+      }
+
       document.getElementById('question-text').textContent = question.text;
 
       var container = document.getElementById('options-container');
@@ -694,7 +732,6 @@
         div.innerHTML =
           '<input type="' + inputType + '" name="answer" value="' + optionNum + '">' +
           '<label class="option-label">' + optionNum + '. ' + option + '</label>';
-
         div.onclick = function() {
           var input = div.querySelector('input');
           if (inputType === 'radio') {
@@ -721,25 +758,28 @@
 
     function submitAnswer() {
       var question = filteredQuestions[currentQuestionIndex];
-      var correct = question.correctAnswers.slice().sort(function(a,b){return a-b;});
-      var selected = selectedAnswers.slice().sort(function(a,b){return a-b;});
+      var correct   = question.correctAnswers.slice().sort(function(a,b){return a-b;});
+      var selected  = selectedAnswers.slice().sort(function(a,b){return a-b;});
       var isCorrect = JSON.stringify(selected) === JSON.stringify(correct);
 
-      // Update counters and show result immediately
       if (isCorrect) sessionCorrectCount++;
       sessionQuestionsAnswered++;
-      answerHistory.push({ isCorrect: isCorrect });
 
-      // Save to server in background
-      fetch(GAS_URL + '?action=submitAnswer', {
-        method: 'POST',
-        body: new URLSearchParams({
-          student_id: currentUser.student_id,
-          question_id: question.id,
-          selected_answers: JSON.stringify(selectedAnswers),
-          is_correct: isCorrect,
-          subject: question.subject
-        })
+      var reQueued = false;
+      if (isWeakMode && !isCorrect) {
+        filteredQuestions.push(question);
+        reQueued = true;
+      }
+      answerHistory.push({ isCorrect: isCorrect, reQueued: reQueued });
+
+      // Firestoreに解答を保存（バックグラウンド）
+      db.collection('answers').add({
+        student_id:       currentUser.student_id,
+        question_id:      question.id,
+        subject:          question.subject,
+        selected_answers: selectedAnswers,
+        is_correct:       isCorrect,
+        timestamp:        firebase.firestore.FieldValue.serverTimestamp()
       }).catch(function(){});
 
       showResult(question, isCorrect);
@@ -756,29 +796,23 @@
         '<p style="margin-top:1rem;font-size:0.9rem;color:var(--text-light)">' +
         '<strong>正解: ' + question.correctAnswers.join(', ') + '</strong></p>';
 
-      // "前の問題に戻る" is visible from 2nd question onward
       document.getElementById('prev-question-btn').style.display =
         currentQuestionIndex > 0 ? 'inline-block' : 'none';
-
-      // Hide submit button, show inline result below question
       document.getElementById('submit-btn').style.display = 'none';
       document.getElementById('inline-result').style.display = 'block';
 
-      // Disable option clicks after answering
       document.querySelectorAll('.option').forEach(function(o){
         o.style.pointerEvents = 'none';
       });
 
-      // Scroll result into view
       document.getElementById('inline-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
     function prevQuestion() {
-      // Undo this question's contribution to counters
       var last = answerHistory.pop();
       sessionQuestionsAnswered--;
       if (last && last.isCorrect) sessionCorrectCount--;
-      // Go back to previous question
+      if (isWeakMode && last && last.reQueued) filteredQuestions.pop();
       currentQuestionIndex--;
       showQuestion();
     }
@@ -796,32 +830,36 @@
       var accuracy = sessionQuestionsAnswered > 0
         ? Math.round((sessionCorrectCount / sessionQuestionsAnswered) * 100) : 0;
       document.getElementById('final-correct-count').textContent = sessionCorrectCount;
-      document.getElementById('final-total-count').textContent = sessionQuestionsAnswered;
-      document.getElementById('final-accuracy').textContent = accuracy;
+      document.getElementById('final-total-count').textContent   = sessionQuestionsAnswered;
+      document.getElementById('final-accuracy').textContent      = accuracy;
       showScreen('complete-screen');
 
-      fetch(GAS_URL + '?action=endSession', {
-        method: 'POST',
-        body: new URLSearchParams({
-          session_id: sessionId,
+      // セッション終了をFirestoreに更新（バックグラウンド）
+      if (sessionDocRef) {
+        sessionDocRef.update({
+          end_time:           firebase.firestore.FieldValue.serverTimestamp(),
           questions_answered: sessionQuestionsAnswered,
-          correct_count: sessionCorrectCount
-        })
-      }).catch(function(){});
+          correct_count:      sessionCorrectCount
+        }).catch(function(){});
+      }
     }
 
     function showDashboard() {
-      fetch(GAS_URL + '?action=getProgress&student_id=' + currentUser.student_id)
-        .then(function(r){ return r.json(); })
-        .then(function(res){
-          displayDashboard(res.data.answers, res.data.sessions || []);
-          showScreen('dashboard-screen');
-        })
-        .catch(function(err){ alert('ダッシュボード読み込みエラー: ' + err.message); });
+      Promise.all([
+        db.collection('answers').where('student_id', '==', currentUser.student_id).get(),
+        db.collection('sessions').where('student_id', '==', currentUser.student_id).get()
+      ])
+      .then(function(results) {
+        var answers  = results[0].docs.map(function(d){ return d.data(); });
+        var sessions = results[1].docs.map(function(d){ return d.data(); });
+        displayDashboard(answers, sessions);
+        showScreen('dashboard-screen');
+      })
+      .catch(function(err){ alert('ダッシュボード読み込みエラー: ' + err.message); });
     }
 
     function displayDashboard(answers, sessions) {
-      // --- Chart 1: Subject accuracy ---
+      // グラフ1: 科目別正解率
       var subjectStats = {};
       answers.forEach(function(a) {
         if (!subjectStats[a.subject]) subjectStats[a.subject] = { answered: 0, correct: 0 };
@@ -841,7 +879,7 @@
         options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 } } }
       });
 
-      // --- Chart 2: Overall progress (doughnut) ---
+      // グラフ2: 学習進捗 (ドーナツ)
       if (progressChartInstance) { progressChartInstance.destroy(); progressChartInstance = null; }
       var correctCount = answers.filter(function(a){ return a.is_correct; }).length;
       progressChartInstance = new Chart(document.getElementById('progressChart').getContext('2d'), {
@@ -851,19 +889,19 @@
         options: { responsive: true }
       });
 
-      // --- Chart 3: Daily learning time (minutes) from sessions ---
+      // グラフ3: 日毎の学習合計時間
       var dailyMinutes = {};
       sessions.forEach(function(s) {
         if (!s.start_time || !s.end_time) return;
-        var start = new Date(s.start_time);
-        var end = new Date(s.end_time);
-        var mins = Math.round((end - start) / 60000);
+        var start = s.start_time.toDate ? s.start_time.toDate() : new Date(s.start_time);
+        var end   = s.end_time.toDate   ? s.end_time.toDate()   : new Date(s.end_time);
+        var mins  = Math.round((end - start) / 60000);
         if (mins <= 0) return;
         var dateKey = start.toLocaleDateString('ja-JP');
         dailyMinutes[dateKey] = (dailyMinutes[dateKey] || 0) + mins;
       });
       var dailyLabels = Object.keys(dailyMinutes).sort();
-      var dailyData = dailyLabels.map(function(d){ return dailyMinutes[d]; });
+      var dailyData   = dailyLabels.map(function(d){ return dailyMinutes[d]; });
 
       if (dailyTimeChartInstance) { dailyTimeChartInstance.destroy(); dailyTimeChartInstance = null; }
       dailyTimeChartInstance = new Chart(document.getElementById('dailyTimeChart').getContext('2d'), {
