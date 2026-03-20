@@ -425,12 +425,12 @@
       students.forEach(function(student) {
         var tr = document.createElement('tr');
         tr.innerHTML =
-          '<td><span class="clickable" onclick="showStudentDetail(\'' + student.student_id + '\')">' + student.student_id + '</span></td>' +
-          '<td><span class="clickable" onclick="showStudentDetail(\'' + student.student_id + '\')">' + (student.name || student.student_id) + '</span></td>' +
-          '<td>' + student.answered + '</td>' +
-          '<td>' + student.correct + '</td>' +
-          '<td>' + student.accuracy + '%</td>' +
-          '<td>-</td><td>-</td>';
+          '<td><span class=\"clickable\" onclick=\"showStudentDetail(\\'' + student.student_id + '\\')\"><\/span>' + student.student_id + '<\/span><\/td>' +
+          '<td><span class=\"clickable\" onclick=\"showStudentDetail(\\'' + student.student_id + '\\')\"><\/span>' + (student.name || student.student_id) + '<\/span><\/td>' +
+          '<td>' + student.answered + '<\/td>' +
+          '<td>' + student.correct + '<\/td>' +
+          '<td>' + student.accuracy + '%<\/td>' +
+          '<td>-<\/td><td>-<\/td>';
         tbody.appendChild(tr);
       });
     }
@@ -478,7 +478,7 @@
         type: 'bar',
         data: { labels: subjectLabels, datasets: [{ label: '正解率 (%)', data: accuracyData,
           backgroundColor: 'rgba(44,95,138,0.8)', borderColor: 'rgba(44,95,138,1)', borderWidth: 1 }] },
-        options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 } } }
+        options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 }, x: { ticks: { maxRotation: 90, minRotation: 90 } } } }
       });
 
       // グラフ2: 週ごとの解答数
